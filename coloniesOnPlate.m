@@ -50,9 +50,7 @@ tend = 1000; % End time (s)
 
 XThresh = 2;
 
-% timesToPrint = [1 25 50 75 100 200 300 500 1000];
 timesToPrint = [1 250 500 750 1000];
-%timesToPrint = dt*[1 2 3 4 5 6 7 8 9 10];
 cmap = jet(length(timesToPrint));
 numTimeSteps = length(0:dt:tend);
 frameTimeSteps = 1:ceil(numTimeSteps/100):numTimeSteps;
@@ -125,9 +123,7 @@ RAll = zeros(sideLength, sideLength, length(timesToPrint));
 LAll = zeros(sideLength, sideLength, length(timesToPrint));
 XAll = zeros(sideLength, sideLength, length(timesToPrint));
 GFPAll = zeros(sideLength, sideLength, length(timesToPrint));
-GFPAll2 = zeros(sideLength, sideLength, length(frameTimeSteps));
-XAll2 = zeros(sideLength, sideLength, length(frameTimeSteps));
-CAll2 = zeros(sideLength, sideLength, length(frameTimeSteps));
+RIKOAll = zeros(sideLength, sideLength, length(frameTimeSteps));
 initialR = 0; %.0001;
 initialL = 0;
 R(midPoint,midPoint) = initialR;
@@ -240,12 +236,7 @@ while(timeStep <= numTimeSteps)
         LAll(:,:,matchesTimesToPrint) = L;
         XAll(:,:,matchesTimesToPrint) = X;
         GFPAll(:,:,matchesTimesToPrint) = GFP;
-    end
-    
-    if sum(frameTimeSteps == timeStep)~=0
-        GFPAll2(:,:,frameTimeSteps == timeStep) = GFP;
-        CAll2(:,:,frameTimeSteps == timeStep) = C;
-        XAll2(:,:,frameTimeSteps == timeStep) = X;
+        RIKOAll(:,:,frameTimeSteps == timeStep) = RIKO;
     end
     
     if(withAdaptive)
@@ -274,185 +265,54 @@ while(timeStep <= numTimeSteps)
 end
 toc
 
-%make three figures for L, R, and combined images
-fig1 = figure(1);
-hold on
-fig2 = figure(2);
-hold on
-fig3 = figure(3);
-hold on
-fig4 = figure(4);
-hold on
-fig11 = figure(11);
-hold on
-
-timeStep = 1;
-
-figArray = [fig1, fig2, fig3, fig4, fig11];
-
-matrixToPlot = zeros(sideLength,sideLength,3);
-for i = 1:5
-    set(0, 'CurrentFigure', figArray(i))
-    
-    %find min and max of L, R, or both across all time points to plot
-    if(i==1)
-        MINVAL=min(min(min(LAll)));
-        MAXVAL=max(max(max(LAll)));
-    elseif(i==2)
-        MINVAL=min(min(min(RAll)));
-        MAXVAL=max(max(max(RAll)));
-    elseif(i==3)
-        MINVAL=min(min(min(min(RAll))),min(min(min(LAll))));
-        MAXVAL=max(max(max(max(RAll))),max(max(max(LAll))));
-    elseif(i==4)
-        MINVAL=min(min(min(XAll)));
-        MAXVAL=max(max(max(XAll)));
-    else
-        MINVAL=min(min(min(GFPAll)));
-        MAXVAL=max(max(max(GFPAll)));
+makeMovie=0;
+titles={'L','R','L and R','X','GFP'};
+for i=1:length(titles)
+    if strcmp(titles{i},'L')
+        arrayAll = LAll;
+    elseif strcmp(titles{i},'R')
+        arrayAll = RAll;
+    elseif strcmp(titles{i},'L and R')
+        arrayAll = [RAll LAll];
+    elseif strcmp(titles{i},'X')
+        arrayAll = [XAll CAll];
+    elseif strcmp(titles{i},'GFP')
+        arrayAll = [GFPAll XAll RIKOAll];
     end
-    
-    for j=1:length(timesToPrint)
-        R = RAll(:,:,j);
-        L = LAll(:,:,j);
-        X = XAll(:,:,j);
-        GFP = GFPAll(:,:,j);
-        
-        %code L as blue, R as green
-        if i == 1
-            matrixToPlot(:, :, 1) = uint16(0);
-            matrixToPlot(:, :, 2) = uint16(0);
-            matrixToPlot(:, :, 3) = L;
-        elseif i==2
-            matrixToPlot(:, :, 1) = uint16(0);
-            matrixToPlot(:, :, 2) = R;
-            matrixToPlot(:, :, 3) = uint16(0);
-        elseif i==3
-            matrixToPlot(:, :, 1) = uint16(0);
-            matrixToPlot(:, :, 2) = R;
-            matrixToPlot(:, :, 3) = L;
-        elseif i==4
-            matrixToPlot(:, :, 1) = X;
-            matrixToPlot(:, :, 2) = uint16(0);
-            matrixToPlot(:, :, 3) = uint16(0);
-        else
-            matrixToPlot(:, :, 1) = uint16(0);
-            matrixToPlot(:, :, 2) = GFP;
-            matrixToPlot(:, :, 3) = uint16(0);
-        end
-        
-        %scale images by appropriate maximum across all time points to
-        %plot
-        matrixToPlotScale = uint16( (matrixToPlot - MINVAL) / (MAXVAL - MINVAL) * (2^16-1) );
-        if(i==5)
-            matrixToPlotScale(:,:,1) = X.*(~RIKO)*(2^16-1);
-            saveMap=matrixToPlotScale;
-        end
-        
-        %plot horizontal cross-section for L and R images only
-        subplot(ceil((length(matchesTimesToPrint)+1)/4),4,1)
-        set(gca,'XLim',[1 sideLength])
-        if i==1
-            plot(1:sideLength, matrixToPlot(midPoint,:,3), 'Color', ...
-                cmap(j,:));
-            xlabel('x')
-            ylabel('L')
-        elseif i==2
-            plot(1:sideLength, matrixToPlot(midPoint,:,2), 'Color', ...
-                cmap(j,:));
-            xlabel('x')
-            ylabel('R')
-        end
-        hold on
-        
-        %plot 2d images of L, R, or both
-        if i==1 || i==2
-            subplot(ceil((length(timesToPrint)+1)/4), ...
-                4, 1 + j)
-        else
-            subplot(ceil((length(timesToPrint))/4), ...
-                4, j)
-        end
-        imshow(matrixToPlotScale)
-        title(['t = ' num2str(timesToPrint(j))])
-        axis([1 sideLength 1 sideLength])
-        hold on
-    end
+    makeGraphics(arrayAll,timesToPrint,i,titles{i},cmap,makeMovie);
 end
 
-figure(10)
-hold on
-subplot(3,4,1)
-plot(1:numTimeSteps, xCum, 'k')
-subplot(3,4,2)
-plot(1:numTimeSteps, cCum, 'm')
-subplot(3,4,3)
-plot(1:numTimeSteps, nCum, 'c')
-subplot(3,4,4)
-plot(1:numTimeSteps, iCum, 'y')
-subplot(3,4,5)
-plot(1:numTimeSteps, rCum, 'g')
-subplot(3,4,6)
-imshow(C)
-subplot(3,4,7)
-imshow(N)
-subplot(3,4,8)
-imshow(I)
-subplot(3,4,9)
-plot(1:numTimeSteps, lCum, 'b')
-
-figure(5)
-surf(C)
 figure(6)
-surf(N)
+surf(C)
 figure(7)
-surf(I)
+surf(N)
 figure(8)
-surf(Ni)
+surf(I)
 figure(9)
+surf(Ni)
+figure(11)
 surf(Ii)
 
-%if(0)
-MINVAL=min(min(min(GFPAll2)));
-MAXVAL=max(max(max(GFPAll2)));
-for i=1:length(frameTimeSteps)
-    GFP = GFPAll2(:,:,i);
-    GFP = GFP + RIKO*.1*MAXVAL;
-    matrixToPlot(:, :, 1) = uint16(0);
-    matrixToPlot(:, :, 2) = GFP;
-    matrixToPlot(:, :, 3) = uint16(0);
-    matrixToPlotScale = uint16( (matrixToPlot - MINVAL) / (MAXVAL - MINVAL) * (2^16-1) );
-    matrixToPlotScale(:,:,1) = X.*(~RIKO)*(2^16-1);
-    figure(15)
-    imshow(matrixToPlotScale(sideOffset+1:sideLength-sideOffset,sideOffset+1:sideLength-sideOffset,:))
-    drawnow
-    print( 15, '-djpeg', sprintf('frames/frmGFP2%d.jpg', i))
-end
-
-disp('making ffmpeg movie')
-system('"C:\Users\Yiping Wang\Documents\ffmpeg\bin\ffmpeg" -y -r 10 -i frames/frmGFP2%d.jpg frames/GFP2.mov')
-disp('done with ffmpeg movie')
-
-MINVAL=min(min(min(CAll2)));
-MAXVAL=max(max(max(CAll2)));
-for i=1:length(frameTimeSteps)
-    C = CAll2(:,:,i);
-    X = XAll2(:,:,i);
-    matrixToPlot(:, :, 1) = uint16(0);
-    matrixToPlot(:, :, 2) = uint16(0);
-    matrixToPlot(:, :, 3) = C;
-    matrixToPlotScale = uint16( (matrixToPlot - MINVAL) / (MAXVAL - MINVAL) * (2^16-1) );
-    matrixToPlotScale(:,:,1) = X*(2^16-1);
-    figure(15)
-    imshow(matrixToPlotScale(sideOffset+1:sideLength-sideOffset,sideOffset+1:sideLength-sideOffset,:))
-    drawnow
-    print( 15, '-djpeg', sprintf('frames/frmX2%d.jpg', i))
-end
-
-disp('making ffmpeg movie')
-system('"C:\Users\Yiping Wang\Documents\ffmpeg\bin\ffmpeg" -y -r 10 -i frames/frmX2%d.jpg frames/X2.mov')
-disp('done with ffmpeg movie')
-%end
+% figure(11)
+% hold on
+% subplot(3,4,1)
+% plot(1:numTimeSteps, xCum, 'k')
+% subplot(3,4,2)
+% plot(1:numTimeSteps, cCum, 'm')
+% subplot(3,4,3)
+% plot(1:numTimeSteps, nCum, 'c')
+% subplot(3,4,4)
+% plot(1:numTimeSteps, iCum, 'y')
+% subplot(3,4,5)
+% plot(1:numTimeSteps, rCum, 'g')
+% subplot(3,4,6)
+% imshow(C)
+% subplot(3,4,7)
+% imshow(N)
+% subplot(3,4,8)
+% imshow(I)
+% subplot(3,4,9)
+% plot(1:numTimeSteps, lCum, 'b')
 
 % This is the Matrix method without autoinduction
 if(0)
