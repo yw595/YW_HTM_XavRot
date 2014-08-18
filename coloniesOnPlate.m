@@ -15,7 +15,7 @@ withAdaptive = 0;
 
 %%% Constants %%%
 
-sideLength = 20;
+sideLength = 500;
 midPoint = ceil(sideLength/2.);
 quarterPt = floor(midPoint/2);
 
@@ -35,7 +35,7 @@ kprodR = .001; % Production rate molecules/second
 kprodL = .001; % Production rate molecules/second
 kdecayR = .0001; %Decay rate molecules/second
 kdecayL = .0001; %Decay rate molecules/second
-kdecayX = .0062/60; %hourly rate scaled to minutes
+kdecayX = 0;%.0062/60; %hourly rate scaled to minutes
 kautoR = 0.0001;
 kautoL = 0.0001;
 kcrossL = 0.0005;
@@ -128,6 +128,7 @@ GFPAll = zeros(sideLength, sideLength, length(timesToPrint));
 GFPAll2 = zeros(sideLength, sideLength, length(frameTimeSteps));
 XAll2 = zeros(sideLength, sideLength, length(frameTimeSteps));
 CAll2 = zeros(sideLength, sideLength, length(frameTimeSteps));
+RIKOAll2 = zeros(sideLength, sideLength, length(frameTimeSteps));
 initialR = 0; %.0001;
 initialL = 0;
 R(midPoint,midPoint) = initialR;
@@ -168,6 +169,8 @@ while(timeStep <= numTimeSteps)
     decayTermR = kdecayR*R;
     changeTermR = diffusionTermR + productionTermR - decayTermR;
     
+    max(max(X))
+    %find(C==max(max(C)))
     diffusionTermC = DC*([C(:,2:end) C(:,1)] + [C(:,end) C(:,1:end-1)] - ...
         4*C + [C(2:end, :); C(1,:)] + [C(end,:); C(1:end-1, :)])/(dx)^2;
     diffusionTermN = DN*([N(:,2:end) N(:,1)] + [N(:,end) N(:,1:end-1)] - ...
@@ -186,12 +189,26 @@ while(timeStep <= numTimeSteps)
     changeTermNi = consumptionTermNi;
     changeTermIi = consumptionTermIi;
     changeTermX = growthTermX;
+    %max(max(consumptionTermC))
     C = max(0,C + dt*changeTermC);
+    %C
     N = max(0,N + dt*changeTermN);
     I = max(0,I + dt*changeTermI);
     Ni = max(0,Ni + dt*changeTermNi);
     Ii = max(0,Ii + dt*changeTermIi);
     X = max(0,X + dt*changeTermX);
+    if(min(min(consumptionTermC))~=0)
+        C(C<-1/(sideLength*sideLength)*max(max(dt*consumptionTermC(consumptionTermC~=0))))=0;
+        %-1/(sideLength*sideLength)*max(max(dt*consumptionTermC(consumptionTermC~=0)))
+        %disp('HERE')
+        %max(max(C))
+    end
+    if(min(min(consumptionTermN))~=0)
+        N(N<-1/(sideLength*sideLength)*max(max(dt*consumptionTermN(consumptionTermN~=0))))=0;
+    end
+    if(min(min(consumptionTermI))~=0)
+        I(I<-1/(sideLength*sideLength)*max(max(dt*consumptionTermI(consumptionTermI~=0))))=0;
+    end
     
     [overflowCoord1 overflowCoord2] = find(X>XThresh,1,'first');
     %randCoords = [-1 1; -1 0; -1 -1; 0 1; 0 -1; 1 1; 1 0; 1 -1];
@@ -246,6 +263,7 @@ while(timeStep <= numTimeSteps)
         GFPAll2(:,:,frameTimeSteps == timeStep) = GFP;
         CAll2(:,:,frameTimeSteps == timeStep) = C;
         XAll2(:,:,frameTimeSteps == timeStep) = X;
+        RIKOAll2(:,:,frameTimeSteps == timeStep) = RIKO;
     end
     
     if(withAdaptive)
@@ -417,6 +435,8 @@ MINVAL=min(min(min(GFPAll2)));
 MAXVAL=max(max(max(GFPAll2)));
 for i=1:length(frameTimeSteps)
     GFP = GFPAll2(:,:,i);
+    X = XAll2(:,:,i);
+    RIKO = RIKOAll2(:,:,i);
     GFP = GFP + RIKO*.1*MAXVAL;
     matrixToPlot(:, :, 1) = uint16(0);
     matrixToPlot(:, :, 2) = GFP;
