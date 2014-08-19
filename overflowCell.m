@@ -1,10 +1,8 @@
 function [LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,newOverflowCoord1 newOverflowCoord2 newOverflowXVal newOverflowLIKOVal newOverflowRIKOVal ...
     newOverflowLRKOVal newOverflowRRKOVal newOverflowIiVal newOverflowNiVal] ... 
-    = overflowCell(varargin)%(overflowCoord1,overflowCoord2,overflowXVal,overflowLIKOVal,overflowRIKOVal,...
-    %overflowLRKOVal,overflowRRKOVal,overflowIiVal,overflowNiVal)
+    = overflowCell(varargin)
 
     randCoords = [-1 1; -1 0; -1 -1; 0 1; 0 -1; 1 1; 1 0; 1 -1];
-    sideLength=100;
     LIKO = varargin{1};
     RIKO = varargin{2};
     LRKO = varargin{3};
@@ -14,15 +12,16 @@ function [LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,newOverflowCoord1 newOverflowCoord2 newOve
     X = varargin{7};
     overflowCoord1 = varargin{8};
     overflowCoord2 = varargin{9};
+    sideLength = varargin{10};
     first=1;
-    if(length(varargin)>9)
-        overflowXVal = varargin{10};
-        overflowLIKOVal = varargin{11};
-        overflowRIKOVal = varargin{12};
-        overflowLRKOVal = varargin{13};
-        overflowRRKOVal = varargin{14};
-        overflowIiVal = varargin{15};
-        overflowNiVal = varargin{16};
+    if(length(varargin)>10)
+        overflowXVal = varargin{11};
+        overflowLIKOVal = varargin{12};
+        overflowRIKOVal = varargin{13};
+        overflowLRKOVal = varargin{14};
+        overflowRRKOVal = varargin{15};
+        overflowIiVal = varargin{16};
+        overflowNiVal = varargin{17};
         first=0;
     end
     
@@ -31,8 +30,8 @@ function [LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,newOverflowCoord1 newOverflowCoord2 newOve
     newOverflowLRKOVal = LRKO(overflowCoord1,overflowCoord2);
     newOverflowRRKOVal = RRKO(overflowCoord1,overflowCoord2);
     if(first)
-        newOverflowIiVal = Ii(overflowCoord1,overflowCoord2)/2;
-        newOverflowNiVal = Ni(overflowCoord1,overflowCoord2)/2;
+        newOverflowIiVal = Ii(overflowCoord1,overflowCoord2);
+        newOverflowNiVal = Ni(overflowCoord1,overflowCoord2);
         newOverflowXVal = X(overflowCoord1,overflowCoord2)/2;
     else
         newOverflowIiVal = Ii(overflowCoord1,overflowCoord2);
@@ -44,14 +43,20 @@ function [LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,newOverflowCoord1 newOverflowCoord2 newOve
     if(newOverflowCoord1>sideLength)
         newOverflowCoord1=1;
     end
+    if(newOverflowCoord1<1)
+        newOverflowCoord1=sideLength;
+    end
     newOverflowCoord2=overflowCoord2+randCoords(numRand,2);
     if(newOverflowCoord2>sideLength)
         newOverflowCoord2=1;
     end
+    if(newOverflowCoord2<1)
+        newOverflowCoord2=sideLength;
+    end
     
     if(first)
-        Ii(overflowCoord1,overflowCoord2) = Ii(overflowCoord1,overflowCoord2)/2;
-        Ni(overflowCoord1,overflowCoord2) = Ni(overflowCoord1,overflowCoord2)/2;
+        Ii(overflowCoord1,overflowCoord2) = Ii(overflowCoord1,overflowCoord2);
+        Ni(overflowCoord1,overflowCoord2) = Ni(overflowCoord1,overflowCoord2);
         X(overflowCoord1,overflowCoord2) = X(overflowCoord1,overflowCoord2)/2;
     else
         LIKO(overflowCoord1,overflowCoord2) = overflowLIKOVal;

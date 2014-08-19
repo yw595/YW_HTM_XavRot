@@ -15,7 +15,7 @@ withAdaptive = 0;
 
 %%% Constants %%%
 
-sideLength = 500;
+sideLength = 20;
 midPoint = ceil(sideLength/2.);
 quarterPt = floor(midPoint/2);
 
@@ -40,18 +40,18 @@ kautoR = 0.0001;
 kautoL = 0.0001;
 kcrossL = 0.0005;
 
-muMax = 0.3341/60; % hourly rate scaled to minutes
+muMax = 4*0.3341/60; % hourly rate scaled to minutes
 muMaxPrime = .0616/60;
 
-dx = .1; %units of mm
-dy = .1; %units of mm
+dx = 1; %units of mm
+dy = 1; %units of mm
 dt = dx^2/max([DR,DL,DC,DN,DI])*.2495; %CFL constant 
-tend = 1000; % End time (s)
+tend = 1200; % End time (s)
 
-XThresh = 2;
+XThresh = .001;
 
 % timesToPrint = [1 25 50 75 100 200 300 500 1000];
-timesToPrint = [1 250 500 750 1000];
+timesToPrint = [1 250 500 750 1000 1250 1500 1750 2000];
 %timesToPrint = dt*[1 2 3 4 5 6 7 8 9 10];
 cmap = jet(length(timesToPrint));
 numTimeSteps = length(0:dt:tend);
@@ -69,18 +69,18 @@ RRKO = zeros(sideLength, sideLength);
 %XDKO = zeros(sideLength, sideLength); 
 
 % %%% Multiple Colonies
-X(midPoint,midPoint) = 1;
-X(quarterPt, quarterPt) = 1;
-X(quarterPt, quarterPt*3) = 1;
-X(quarterPt*3, quarterPt*3) = 1;
-X(quarterPt*3, quarterPt) = 1;
-LIKO(quarterPt, quarterPt) = 1;
-RIKO(quarterPt, quarterPt*3) = 1;
-LRKO(quarterPt*3, quarterPt*3) = 1;
-RRKO(quarterPt*3, quarterPt) = 1;
+ X(midPoint,midPoint) = 1/(1.1*10^11);
+% X(quarterPt, quarterPt) = 1;
+% X(quarterPt, quarterPt*3) = 1;
+% X(quarterPt*3, quarterPt*3) = 1;
+% X(quarterPt*3, quarterPt) = 1;
+% LIKO(quarterPt, quarterPt) = 1;
+% RIKO(quarterPt, quarterPt*3) = 1;
+% LRKO(quarterPt*3, quarterPt*3) = 1;
+% RRKO(quarterPt*3, quarterPt) = 1;
 
 sideOffset=0;
-% X(ceil(sideOffset+(sideLength-2*sideOffset)*100/350),ceil(sideOffset+(sideLength-2*sideOffset)*50/350))=1;
+% X(ceil(sideOffset+(sideLength-2*sideOffset)*100/350),ceil(sideOffset+(sideLength-2*sideOffset)*50/350))=1/(1.1*10^11);
 % RIKOcoords=[160 25;
 %     210 25;
 %     275 65;
@@ -107,7 +107,7 @@ sideOffset=0;
 %     220 295;
 %     160 300];
 % for i=1:length(RIKOcoords)
-%     X(ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,1)/350),ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,2)/350))=1;
+%     X(ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,1)/350),ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,2)/350))=1/(1.1*10^11);
 %     RIKO(ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,1)/350),ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,2)/350))=1;
 % end
 
@@ -116,7 +116,6 @@ L = zeros(sideLength, sideLength);
 GFP = R.*X.*RIKO;
 C = .5*.0012*1/(sideLength*sideLength)*ones(sideLength, sideLength);
 N = .0625*.0012*1/(sideLength*sideLength)*ones(sideLength, sideLength);
-%P = .01*ones(sideLength, sideLength);
 I = .00006981*.0012*1/(sideLength*sideLength)*ones(sideLength, sideLength);
 Ni = ones(sideLength, sideLength).*(X~=0);
 Ii = ones(sideLength, sideLength).*(X~=0);
@@ -144,8 +143,7 @@ skipsteps=0;
 tic
 timeStep=1;
 while(timeStep <= numTimeSteps)
-    mu = muMax*(C>0 & N>0).*Ii + muMaxPrime*(N<=0 & C>0).*Ni;
-    % timeStep*dt
+    timeStep*dt
     
     % L dynamics
     diffusionTermL = DL*([L(:,2:end) L(:,1)] + [L(:,end) L(:,1:end-1)] - ...
@@ -169,29 +167,32 @@ while(timeStep <= numTimeSteps)
     decayTermR = kdecayR*R;
     changeTermR = diffusionTermR + productionTermR - decayTermR;
     
-    max(max(X))
-    %find(C==max(max(C)))
     diffusionTermC = DC*([C(:,2:end) C(:,1)] + [C(:,end) C(:,1:end-1)] - ...
         4*C + [C(2:end, :); C(1,:)] + [C(end,:); C(1:end-1, :)])/(dx)^2;
     diffusionTermN = DN*([N(:,2:end) N(:,1)] + [N(:,end) N(:,1:end-1)] - ...
         4*N + [N(2:end, :); N(1,:)] + [N(end,:); N(1:end-1, :)])/(dx)^2;
     diffusionTermI = DI*([I(:,2:end) I(:,1)] + [I(:,end) I(:,1:end-1)] - ...
         4*I + [I(2:end, :); I(1,:)] + [I(end,:); I(1:end-1, :)])/(dx)^2;
+    changeTermC = diffusionTermC;
+    changeTermN = diffusionTermN;
+    changeTermI = diffusionTermI;
+    C = max(0,C + dt*changeTermC);
+    N = max(0,N + dt*changeTermN);
+    I = max(0,I + dt*changeTermI);
+    mu = muMax*(C>0 & N>0).*Ii + muMaxPrime*(N<=0 & C>0).*Ni;
     consumptionTermC = -1/YC*mu.*X.*(C>0);
     consumptionTermN = -1/YN*mu.*X.*(N>0);
     consumptionTermI = -1/YI*mu.*X.*(I>0);
-    consumptionTermNi = -(1/YNi + Ni).*mu.*(N==0 & Ni>0);
-    consumptionTermIi = -(1/YIi + Ii).*mu.*(I==0 & Ii>0);
+    consumptionTermNi = -(1/YNi).*mu.*(N==0 & Ni>0);
+    consumptionTermIi = -(1/YIi).*mu.*(I==0 & Ii>0);
     growthTermX = mu.*X.*(C>0) + (mu-kdecayX).*X.*(C==0);
-    changeTermC = diffusionTermC + consumptionTermC;
-    changeTermN = diffusionTermN + consumptionTermN;
-    changeTermI = diffusionTermI + consumptionTermI;
+    changeTermC = consumptionTermC;
+    changeTermN = consumptionTermN;
+    changeTermI = consumptionTermI;
     changeTermNi = consumptionTermNi;
     changeTermIi = consumptionTermIi;
     changeTermX = growthTermX;
-    %max(max(consumptionTermC))
     C = max(0,C + dt*changeTermC);
-    %C
     N = max(0,N + dt*changeTermN);
     I = max(0,I + dt*changeTermI);
     Ni = max(0,Ni + dt*changeTermNi);
@@ -199,9 +200,6 @@ while(timeStep <= numTimeSteps)
     X = max(0,X + dt*changeTermX);
     if(min(min(consumptionTermC))~=0)
         C(C<-1/(sideLength*sideLength)*max(max(dt*consumptionTermC(consumptionTermC~=0))))=0;
-        %-1/(sideLength*sideLength)*max(max(dt*consumptionTermC(consumptionTermC~=0)))
-        %disp('HERE')
-        %max(max(C))
     end
     if(min(min(consumptionTermN))~=0)
         N(N<-1/(sideLength*sideLength)*max(max(dt*consumptionTermN(consumptionTermN~=0))))=0;
@@ -215,11 +213,11 @@ while(timeStep <= numTimeSteps)
     while(~isempty(overflowCoord1))
         [LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,overflowCoord1,overflowCoord2,overflowXVal,overflowLIKOVal,overflowRIKOVal,...
         overflowLRKOVal,overflowRRKOVal,overflowIiVal,overflowNiVal] = ...
-        overflowCell(LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,overflowCoord1,overflowCoord2);
+        overflowCell(LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,overflowCoord1,overflowCoord2,sideLength);
         while( overflowXVal > 0 )
             [LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,overflowCoord1,overflowCoord2,overflowXVal,overflowLIKOVal,overflowRIKOVal,...
             overflowLRKOVal,overflowRRKOVal,overflowIiVal,overflowNiVal] = ...
-            overflowCell(LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,overflowCoord1,overflowCoord2,overflowXVal,overflowLIKOVal,overflowRIKOVal,...
+            overflowCell(LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,overflowCoord1,overflowCoord2,sideLength,overflowXVal,overflowLIKOVal,overflowRIKOVal,...
             overflowLRKOVal,overflowRRKOVal,overflowIiVal,overflowNiVal);
         end
         [overflowCoord1 overflowCoord2] = find(X>XThresh,1,'first');
@@ -233,15 +231,15 @@ while(timeStep <= numTimeSteps)
     %/(dx)^2)/(1+dt*kdecay));
     
     if(mod(timeStep,uint64(100/dt))==0)
-        disp(dt*timeStep)
-        disp(max(max(R)))
-        disp((max(max(R))-min(min(R)))/(max(max(R))))
-        disp(sum(sum(decayTermR)))
-        disp(sum(sum(productionTermR)))
-        Ii(quarterPt,quarterPt)
-        Ii(quarterPt,quarterPt*3)
-        Ii(quarterPt*3,quarterPt*3)
-        Ii(quarterPt*3,quarterPt)
+%         disp(dt*timeStep)
+%         disp(max(max(R)))
+%         disp((max(max(R))-min(min(R)))/(max(max(R))))
+%         disp(sum(sum(decayTermR)))
+%         disp(sum(sum(productionTermR)))
+%         Ii(quarterPt,quarterPt)
+%         Ii(quarterPt,quarterPt*3)
+%         Ii(quarterPt*3,quarterPt*3)
+%         Ii(quarterPt*3,quarterPt)
     end
     
     xCum(timeStep) = sum(sum(X));
@@ -431,18 +429,22 @@ figure(9)
 surf(Ii)
 
 %if(0)
-MINVAL=min(min(min(GFPAll2)));
-MAXVAL=max(max(max(GFPAll2)));
+system('rm frames/*2*.jpg')
+MINVAL1=min(min(min(GFPAll2)));
+MAXVAL1=max(max(max(GFPAll2)));
+MINVAL2=min(min(min(XAll2)));
+MAXVAL2=max(max(max(XAll2)));
 for i=1:length(frameTimeSteps)
     GFP = GFPAll2(:,:,i);
     X = XAll2(:,:,i);
     RIKO = RIKOAll2(:,:,i);
-    GFP = GFP + RIKO*.1*MAXVAL;
+    GFP = GFP + RIKO*.1*MAXVAL1;
     matrixToPlot(:, :, 1) = uint16(0);
     matrixToPlot(:, :, 2) = GFP;
-    matrixToPlot(:, :, 3) = uint16(0);
-    matrixToPlotScale = uint16( (matrixToPlot - MINVAL) / (MAXVAL - MINVAL) * (2^16-1) );
-    matrixToPlotScale(:,:,1) = X.*(~RIKO)*(2^16-1);
+    matrixToPlot(:, :, 3) = X.*(~RIKO);
+    matrixToPlotScale = matrixToPlot;
+    matrixToPlotScale(:, :, 2) = uint16( (matrixToPlot(:, :, 2) - MINVAL1) / (MAXVAL1 - MINVAL1) * (2^16-1) );
+    matrixToPlotScale(:, :, 3) = uint16( (matrixToPlot(:, :, 3) - MINVAL2) / (MAXVAL2 - MINVAL2) * (2^16-1) );
     figure(15)
     imshow(matrixToPlotScale(sideOffset+1:sideLength-sideOffset,sideOffset+1:sideLength-sideOffset,:))
     drawnow
@@ -453,16 +455,19 @@ disp('making ffmpeg movie')
 system('"C:\Users\Yiping Wang\Documents\ffmpeg\bin\ffmpeg" -y -r 10 -i frames/frmGFP2%d.jpg frames/GFP2.mov')
 disp('done with ffmpeg movie')
 
-MINVAL=min(min(min(CAll2)));
-MAXVAL=max(max(max(CAll2)));
+MINVAL1=min(min(min(CAll2)));
+MAXVAL1=max(max(max(CAll2)));
+MINVAL2=min(min(min(XAll2)));
+MAXVAL2=max(max(max(XAll2)));
 for i=1:length(frameTimeSteps)
     C = CAll2(:,:,i);
     X = XAll2(:,:,i);
-    matrixToPlot(:, :, 1) = uint16(0);
+    matrixToPlot(:, :, 1) = X;
     matrixToPlot(:, :, 2) = uint16(0);
     matrixToPlot(:, :, 3) = C;
-    matrixToPlotScale = uint16( (matrixToPlot - MINVAL) / (MAXVAL - MINVAL) * (2^16-1) );
-    matrixToPlotScale(:,:,1) = X*(2^16-1);
+    matrixToPlotScale = matrixToPlot;
+    matrixToPlotScale(:,:,3) = uint16( (matrixToPlot(:,:,3) - MINVAL1) / (MAXVAL1 - MINVAL1) * (2^16-1) );
+    matrixToPlotScale(:,:,1) = uint16( (matrixToPlot(:,:,1) - MINVAL2) / (MAXVAL2 - MINVAL2) * (2^16-1) );
     figure(15)
     imshow(matrixToPlotScale(sideOffset+1:sideLength-sideOffset,sideOffset+1:sideLength-sideOffset,:))
     drawnow
@@ -473,76 +478,3 @@ disp('making ffmpeg movie')
 system('"C:\Users\Yiping Wang\Documents\ffmpeg\bin\ffmpeg" -y -r 10 -i frames/frmX2%d.jpg frames/X2.mov')
 disp('done with ffmpeg movie')
 %end
-
-% This is the Matrix method without autoinduction
-if(0)
-    
-    R = reshape(R,sideLength^2,1)+.01;
-    X = reshape(X,sideLength^2,1);
-    % reshape(R, M, N) reshapes R -> MXN matrix
-    
-    %multiplicative induction
-    %kprod=kdecay;
-    
-    b = kprodR*X; % Density Dependent production
-    %b=zeros(sideLength^2,1);
-    
-    % Create operator matrix
-    bigEye = eye(sideLength^2); % creates basline identity matrix
-    
-    A = DS/(dx^2)*(zeros(sideLength^2,sideLength^2)-4*bigEye+...
-        circshift(bigEye,[0 1])+circshift(bigEye,[0 -1])+...
-        circshift(bigEye,[0 sideLength])+circshift(bigEye,[0 -sideLength]));
-    % circshift(A, [y X]) shifts the values of the array by y vertically
-    % and X horizontally
-    
-    A = A-kdecayR*bigEye;
-    
-    %multiplicative induction
-    %A=A-kdecay*bigEye+diag(kprod*X);
-    
-    A = sparse(A);
-    
-    % Rolve for R (Concentration of R everywhere)
-    R = A\(-b); % R = Del^2\(-production) at steady state
-    %max(abs(A*R+b))
-    
-    R = reshape(R,sideLength,sideLength);
-    
-    %figure(1)
-    HeatMap(R)
-    %hold on
-    %figure(2)
-    %plot(1:sideLength, R(midPoint,:))
-end
-
-%subplot(ceil((length(matchesTimesToPrint)+2)/4),4,2)
-%set(gca,'XLim',[1 tend])
-%plot(1:dt:tend, Rstore, 'Color', cmap(find(matchesTimesToPrint),:));
-%Xlabel('t')
-%ylabel('R(source)')
-%hold on
-
-% This is a while loop useful for determining whether the system has
-% converged to a steady state yet.
-if(0)
-    notConverged = 1;
-    R = zeros(sideLength,sideLength);
-    numIterations = 1;
-    while(1)
-        Rnext = R + dt.*(DS*([R(:,2:end) R(:,1)] + [R(:,end) R(:,1:end-1)] - ...
-            4*R + [R(2:end, :); R(1,:)] + [R(end,:); R(1:end-1, :)])...
-            /(dx)^2 + kprod*X);
-        if(max(max(abs(R-Rnext))) < .0001*max(max(abs(R))))
-            notConverged = 0;
-        end
-        numIterations = numIterations+1;
-        if(mod(numIterations,1000) == 0)
-            numIterations
-            abs(R(midPoint,midPoint) - R(sideLength,sideLength))
-            R(midPoint,midPoint)
-            R(sideLength,sideLength)
-        end
-        R = Rnext;
-    end
-end
