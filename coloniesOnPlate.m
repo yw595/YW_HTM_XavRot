@@ -15,12 +15,12 @@ withAdaptive = 0;
 
 %%% Constants %%%
 
-sideLength = 20;
+sideLength = 200;
 midPoint = ceil(sideLength/2.);
 quarterPt = floor(midPoint/2);
 
-DR = .010; % Diffusivity mm^2/min
-DL = .010; 
+DR = .030; % Diffusivity mm^2/min
+DL = .030; 
 DC = .0556; %bionumbers
 DN = .045; %http://www.sciencedirect.com/science/article/pii/S0022024800005285
 DI = .045; %assumed to be close to DN
@@ -33,22 +33,22 @@ YIi = 4.9892;
 
 kprodR = .001; % Production rate molecules/second
 kprodL = .001; % Production rate molecules/second
-kdecayR = .0001; %Decay rate molecules/second
-kdecayL = .0001; %Decay rate molecules/second
+kdecayR = 0;%.0001; %Decay rate molecules/second
+kdecayL = 0;%.0001; %Decay rate molecules/second
 kdecayX = 0;%.0062/60; %hourly rate scaled to minutes
 kautoR = 0.0001;
 kautoL = 0.0001;
 kcrossL = 0.0005;
 
-muMax = 4*0.3341/60; % hourly rate scaled to minutes
+muMax = 0.3341/60; % hourly rate scaled to minutes
 muMaxPrime = .0616/60;
 
-dx = 1; %units of mm
-dy = 1; %units of mm
+dx = .1; %units of mm
+dy = .1; %units of mm
 dt = dx^2/max([DR,DL,DC,DN,DI])*.2495; %CFL constant 
-tend = 1200; % End time (s)
+tend = 4800; % End time (s)
 
-XThresh = .001;
+XThresh = 10000*100/(1.1*10^11);%.0001
 
 % timesToPrint = [1 25 50 75 100 200 300 500 1000];
 timesToPrint = [1 250 500 750 1000 1250 1500 1750 2000];
@@ -69,7 +69,7 @@ RRKO = zeros(sideLength, sideLength);
 %XDKO = zeros(sideLength, sideLength); 
 
 % %%% Multiple Colonies
- X(midPoint,midPoint) = 1/(1.1*10^11);
+% X(midPoint,midPoint) = 1/(1.1*10^11);
 % X(quarterPt, quarterPt) = 1;
 % X(quarterPt, quarterPt*3) = 1;
 % X(quarterPt*3, quarterPt*3) = 1;
@@ -80,36 +80,36 @@ RRKO = zeros(sideLength, sideLength);
 % RRKO(quarterPt*3, quarterPt) = 1;
 
 sideOffset=0;
-% X(ceil(sideOffset+(sideLength-2*sideOffset)*100/350),ceil(sideOffset+(sideLength-2*sideOffset)*50/350))=1/(1.1*10^11);
-% RIKOcoords=[160 25;
-%     210 25;
-%     275 65;
-%     110 75;
-%     80 100;
-%     310 100;
-%     40 120;
-%     125 120;
-%     175 120;
-%     35 135;
-%     280 135;
-%     145 150;
-%     310 150;
-%     20 160;
-%     260 170;
-%     90 190;
-%     220 200;
-%     325 210;
-%     55 220;
-%     105 225;
-%     125 250;
-%     155 275;
-%     120 290;
-%     220 295;
-%     160 300];
-% for i=1:length(RIKOcoords)
-%     X(ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,1)/350),ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,2)/350))=1/(1.1*10^11);
-%     RIKO(ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,1)/350),ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,2)/350))=1;
-% end
+X(ceil(sideOffset+(sideLength-2*sideOffset)*100/350),ceil(sideOffset+(sideLength-2*sideOffset)*50/350))=100/(1.1*10^11);
+RIKOcoords=[160 25;
+    210 25;
+    275 65;
+    110 75;
+    80 100;
+    310 100;
+    40 120;
+    125 120;
+    175 120;
+    35 135;
+    280 135;
+    145 150;
+    310 150;
+    20 160;
+    260 170;
+    90 190;
+    220 200;
+    325 210;
+    55 220;
+    105 225;
+    125 250;
+    155 275;
+    120 290;
+    220 295;
+    160 300];
+for i=1:length(RIKOcoords)
+    X(ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,1)/350),ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,2)/350))=100/(1.1*10^11);
+    RIKO(ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,1)/350),ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,2)/350))=1;
+end
 
 R = zeros(sideLength, sideLength);
 L = zeros(sideLength, sideLength);
@@ -128,6 +128,7 @@ GFPAll2 = zeros(sideLength, sideLength, length(frameTimeSteps));
 XAll2 = zeros(sideLength, sideLength, length(frameTimeSteps));
 CAll2 = zeros(sideLength, sideLength, length(frameTimeSteps));
 RIKOAll2 = zeros(sideLength, sideLength, length(frameTimeSteps));
+RAll2 = zeros(sideLength, sideLength, length(frameTimeSteps));
 initialR = 0; %.0001;
 initialL = 0;
 R(midPoint,midPoint) = initialR;
@@ -146,19 +147,17 @@ while(timeStep <= numTimeSteps)
     timeStep*dt
     
     % L dynamics
-    diffusionTermL = DL*([L(:,2:end) L(:,1)] + [L(:,end) L(:,1:end-1)] - ...
-        4*L + [L(2:end, :); L(1,:)] + [L(end,:); L(1:end-1, :)])/(dx)^2;
+    diffusionTerm = makeDiffusionMatrix(L,dx,DL,timeStep,0);
     %diffusionTermL = DL*filter2(diffKernel,extendedL,'valid')/(dx)^2;
     productionTermL = kprodL*(X.*(~LIKO));
     if(withAutoInduction)
         productionTermL = productionTermL + kprodL*(X.*(~LIKO).*(~LRKO)).*L./(kautoL+L);
     end
     decayTermL = kdecayL*L;
-    changeTermL = diffusionTermL + productionTermL - decayTermL;
+    changeTermL = diffusionTerm + productionTermL - decayTermL;
     
     % R dynamics
-    diffusionTermR = DR*([R(:,2:end) R(:,1)] + [R(:,end) R(:,1:end-1)] - ...
-        4*R + [R(2:end, :); R(1,:)] + [R(end,:); R(1:end-1, :)])/(dx)^2;
+    diffusionTermR = makeDiffusionMatrix(R,dx,DR,timeStep,0);
     %diffusionTermR = DS*filter2(diffKernel,extendedR,'valid')/(dx)^2;
     productionTermR = kprodR*(X.*(~RIKO));
     if(withAutoInduction)
@@ -167,12 +166,9 @@ while(timeStep <= numTimeSteps)
     decayTermR = kdecayR*R;
     changeTermR = diffusionTermR + productionTermR - decayTermR;
     
-    diffusionTermC = DC*([C(:,2:end) C(:,1)] + [C(:,end) C(:,1:end-1)] - ...
-        4*C + [C(2:end, :); C(1,:)] + [C(end,:); C(1:end-1, :)])/(dx)^2;
-    diffusionTermN = DN*([N(:,2:end) N(:,1)] + [N(:,end) N(:,1:end-1)] - ...
-        4*N + [N(2:end, :); N(1,:)] + [N(end,:); N(1:end-1, :)])/(dx)^2;
-    diffusionTermI = DI*([I(:,2:end) I(:,1)] + [I(:,end) I(:,1:end-1)] - ...
-        4*I + [I(2:end, :); I(1,:)] + [I(end,:); I(1:end-1, :)])/(dx)^2;
+    diffusionTermC = makeDiffusionMatrix(C,dx,DC,timeStep,0);
+    diffusionTermN = makeDiffusionMatrix(N,dx,DN,timeStep,0);
+    diffusionTermI = makeDiffusionMatrix(I,dx,DI,timeStep,0);
     changeTermC = diffusionTermC;
     changeTermN = diffusionTermN;
     changeTermI = diffusionTermI;
@@ -213,12 +209,12 @@ while(timeStep <= numTimeSteps)
     while(~isempty(overflowCoord1))
         [LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,overflowCoord1,overflowCoord2,overflowXVal,overflowLIKOVal,overflowRIKOVal,...
         overflowLRKOVal,overflowRRKOVal,overflowIiVal,overflowNiVal] = ...
-        overflowCell(LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,overflowCoord1,overflowCoord2,sideLength);
+        overflowCell(LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,overflowCoord1,overflowCoord2,sideLength,timeStep);
         while( overflowXVal > 0 )
             [LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,overflowCoord1,overflowCoord2,overflowXVal,overflowLIKOVal,overflowRIKOVal,...
             overflowLRKOVal,overflowRRKOVal,overflowIiVal,overflowNiVal] = ...
             overflowCell(LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,overflowCoord1,overflowCoord2,sideLength,overflowXVal,overflowLIKOVal,overflowRIKOVal,...
-            overflowLRKOVal,overflowRRKOVal,overflowIiVal,overflowNiVal);
+            overflowLRKOVal,overflowRRKOVal,overflowIiVal,overflowNiVal,timeStep);
         end
         [overflowCoord1 overflowCoord2] = find(X>XThresh,1,'first');
     end
@@ -262,6 +258,7 @@ while(timeStep <= numTimeSteps)
         CAll2(:,:,frameTimeSteps == timeStep) = C;
         XAll2(:,:,frameTimeSteps == timeStep) = X;
         RIKOAll2(:,:,frameTimeSteps == timeStep) = RIKO;
+        RAll2(:,:,frameTimeSteps == timeStep) = R;
     end
     
     if(withAdaptive)
@@ -434,17 +431,22 @@ MINVAL1=min(min(min(GFPAll2)));
 MAXVAL1=max(max(max(GFPAll2)));
 MINVAL2=min(min(min(XAll2)));
 MAXVAL2=max(max(max(XAll2)));
+MINVAL3=min(min(min(RAll2)));
+MAXVAL3=max(max(max(RAll2)));
 for i=1:length(frameTimeSteps)
     GFP = GFPAll2(:,:,i);
     X = XAll2(:,:,i);
     RIKO = RIKOAll2(:,:,i);
-    GFP = GFP + RIKO*.1*MAXVAL1;
-    matrixToPlot(:, :, 1) = uint16(0);
+    R = RAll2(:,:,i);
+    %GFP = GFP + RIKO*.1*MAXVAL1;
+    matrixToPlot(:, :, 1) = X.*(~RIKO);
     matrixToPlot(:, :, 2) = GFP;
-    matrixToPlot(:, :, 3) = X.*(~RIKO);
-    matrixToPlotScale = matrixToPlot;
+    matrixToPlot(:, :, 3) = R.*(X==0);
+    matrixToPlotScale = uint16(zeros(size(matrixToPlot,1),size(matrixToPlot,2),size(matrixToPlot,3)));
+    matrixToPlotScale(:, :, 3) = uint16( (matrixToPlot(:, :, 3) - MINVAL3) / (MAXVAL3 - MINVAL3) * (2^16-1) );
     matrixToPlotScale(:, :, 2) = uint16( (matrixToPlot(:, :, 2) - MINVAL1) / (MAXVAL1 - MINVAL1) * (2^16-1) );
-    matrixToPlotScale(:, :, 3) = uint16( (matrixToPlot(:, :, 3) - MINVAL2) / (MAXVAL2 - MINVAL2) * (2^16-1) );
+    matrixToPlotScale(:, :, 2) = min( uint16(matrixToPlotScale(:, :, 2) + uint16(RIKO*2000)), uint16(2^16-1));
+    matrixToPlotScale(:, :, 1) = uint16( (matrixToPlot(:, :, 1) - MINVAL2) / (MAXVAL2 - MINVAL2) * (2^16-1) );
     figure(15)
     imshow(matrixToPlotScale(sideOffset+1:sideLength-sideOffset,sideOffset+1:sideLength-sideOffset,:))
     drawnow
@@ -465,7 +467,7 @@ for i=1:length(frameTimeSteps)
     matrixToPlot(:, :, 1) = X;
     matrixToPlot(:, :, 2) = uint16(0);
     matrixToPlot(:, :, 3) = C;
-    matrixToPlotScale = matrixToPlot;
+    matrixToPlotScale = uint16(zeros(size(matrixToPlot,1),size(matrixToPlot,2),size(matrixToPlot,3)));
     matrixToPlotScale(:,:,3) = uint16( (matrixToPlot(:,:,3) - MINVAL1) / (MAXVAL1 - MINVAL1) * (2^16-1) );
     matrixToPlotScale(:,:,1) = uint16( (matrixToPlot(:,:,1) - MINVAL2) / (MAXVAL2 - MINVAL2) * (2^16-1) );
     figure(15)
