@@ -46,9 +46,9 @@ muMaxPrime = .0616/60;
 dx = .1; %units of mm
 dy = .1; %units of mm
 dt = dx^2/max([DR,DL,DC,DN,DI])*.2495; %CFL constant 
-tend = 4800; % End time (s)
+tend = 2400; % End time (s)
 
-XThresh = 10000*100/(1.1*10^11);%.0001
+XThresh = 10000*1/(.15*1.1*10^9);%.0001
 
 % timesToPrint = [1 25 50 75 100 200 300 500 1000];
 timesToPrint = [1 250 500 750 1000 1250 1500 1750 2000];
@@ -65,11 +65,14 @@ X = zeros(sideLength, sideLength);
 LIKO = zeros(sideLength, sideLength); 
 RIKO = zeros(sideLength, sideLength);
 LRKO = zeros(sideLength, sideLength); 
-RRKO = zeros(sideLength, sideLength); 
+RRKO = zeros(sideLength, sideLength);
+colonies = zeros(sideLength, sideLength);
 %XDKO = zeros(sideLength, sideLength); 
 
 % %%% Multiple Colonies
-% X(midPoint,midPoint) = 1/(1.1*10^11);
+%X(midPoint,midPoint) = 1/(.15*1.1*10^11);
+%colonies(midPoint,midPoint) = 1;
+%colonyCenterCoords = [midPoint midPoint];
 % X(quarterPt, quarterPt) = 1;
 % X(quarterPt, quarterPt*3) = 1;
 % X(quarterPt*3, quarterPt*3) = 1;
@@ -80,7 +83,9 @@ RRKO = zeros(sideLength, sideLength);
 % RRKO(quarterPt*3, quarterPt) = 1;
 
 sideOffset=0;
-X(ceil(sideOffset+(sideLength-2*sideOffset)*100/350),ceil(sideOffset+(sideLength-2*sideOffset)*50/350))=100/(1.1*10^11);
+X(ceil(sideOffset+(sideLength-2*sideOffset)*100/350),ceil(sideOffset+(sideLength-2*sideOffset)*50/350))=100/(.15*1.1*10^11);
+colonies(ceil(sideOffset+(sideLength-2*sideOffset)*100/350),ceil(sideOffset+(sideLength-2*sideOffset)*50/350))=1;
+colonyCenterCoords = [ceil(sideOffset+(sideLength-2*sideOffset)*100/350) ceil(sideOffset+(sideLength-2*sideOffset)*50/350)];
 RIKOcoords=[160 25;
     210 25;
     275 65;
@@ -107,8 +112,10 @@ RIKOcoords=[160 25;
     220 295;
     160 300];
 for i=1:length(RIKOcoords)
-    X(ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,1)/350),ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,2)/350))=100/(1.1*10^11);
+    X(ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,1)/350),ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,2)/350))=100/(.15*1.1*10^11);
     RIKO(ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,1)/350),ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,2)/350))=1;
+    colonies(ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,1)/350),ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,2)/350))=i+1;
+    colonyCenterCoords(end+1,:)=[ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,1)/350) ceil(sideOffset+(sideLength-2*sideOffset)*RIKOcoords(i,2)/350)];
 end
 
 R = zeros(sideLength, sideLength);
@@ -179,8 +186,8 @@ while(timeStep <= numTimeSteps)
     consumptionTermC = -1/YC*mu.*X.*(C>0);
     consumptionTermN = -1/YN*mu.*X.*(N>0);
     consumptionTermI = -1/YI*mu.*X.*(I>0);
-    consumptionTermNi = -(1/YNi).*mu.*(N==0 & Ni>0);
-    consumptionTermIi = -(1/YIi).*mu.*(I==0 & Ii>0);
+    consumptionTermNi = -(1/YNi+Ni).*mu.*(N==0 & Ni>0);
+    consumptionTermIi = -(1/YIi+Ii).*mu.*(I==0 & Ii>0);
     growthTermX = mu.*X.*(C>0) + (mu-kdecayX).*X.*(C==0);
     changeTermC = consumptionTermC;
     changeTermN = consumptionTermN;
@@ -207,14 +214,16 @@ while(timeStep <= numTimeSteps)
     [overflowCoord1 overflowCoord2] = find(X>XThresh,1,'first');
     %randCoords = [-1 1; -1 0; -1 -1; 0 1; 0 -1; 1 1; 1 0; 1 -1];
     while(~isempty(overflowCoord1))
-        [LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,overflowCoord1,overflowCoord2,overflowXVal,overflowLIKOVal,overflowRIKOVal,...
-        overflowLRKOVal,overflowRRKOVal,overflowIiVal,overflowNiVal] = ...
-        overflowCell(LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,overflowCoord1,overflowCoord2,sideLength,timeStep);
+        [LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,colonies,overflowCoord1,overflowCoord2,overflowXVal,overflowLIKOVal,overflowRIKOVal,...
+        overflowLRKOVal,overflowRRKOVal,overflowIiVal,overflowNiVal,overflowColoniesVal] = ...
+        overflowCell(LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,colonies,overflowCoord1,overflowCoord2,sideLength,timeStep, ...
+        colonyCenterCoords,colonies(overflowCoord1,overflowCoord2));
         while( overflowXVal > 0 )
-            [LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,overflowCoord1,overflowCoord2,overflowXVal,overflowLIKOVal,overflowRIKOVal,...
-            overflowLRKOVal,overflowRRKOVal,overflowIiVal,overflowNiVal] = ...
-            overflowCell(LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,overflowCoord1,overflowCoord2,sideLength,overflowXVal,overflowLIKOVal,overflowRIKOVal,...
-            overflowLRKOVal,overflowRRKOVal,overflowIiVal,overflowNiVal,timeStep);
+            [LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,colonies,overflowCoord1,overflowCoord2,overflowXVal,overflowLIKOVal,overflowRIKOVal,...
+            overflowLRKOVal,overflowRRKOVal,overflowIiVal,overflowNiVal,overflowColoniesVal] = ...
+            overflowCell(LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,colonies,overflowCoord1,overflowCoord2,sideLength,timeStep, ...
+            colonyCenterCoords,colonies(overflowCoord1,overflowCoord2), ...
+            overflowXVal,overflowLIKOVal,overflowRIKOVal,overflowLRKOVal,overflowRRKOVal,overflowIiVal,overflowNiVal,overflowColoniesVal);
         end
         [overflowCoord1 overflowCoord2] = find(X>XThresh,1,'first');
     end
@@ -450,11 +459,11 @@ for i=1:length(frameTimeSteps)
     figure(15)
     imshow(matrixToPlotScale(sideOffset+1:sideLength-sideOffset,sideOffset+1:sideLength-sideOffset,:))
     drawnow
-    print( 15, '-djpeg', sprintf('frames/frmGFP2%d.jpg', i))
+    print( 15, '-djpeg', sprintf('frames/frmGFP4%d.jpg', i))
 end
 
 disp('making ffmpeg movie')
-system('"C:\Users\Yiping Wang\Documents\ffmpeg\bin\ffmpeg" -y -r 10 -i frames/frmGFP2%d.jpg frames/GFP2.mov')
+system('"C:\Users\Yiping Wang\Documents\ffmpeg\bin\ffmpeg" -y -r 10 -i frames/frmGFP4%d.jpg frames/GFP4.mov')
 disp('done with ffmpeg movie')
 
 MINVAL1=min(min(min(CAll2)));
@@ -473,10 +482,10 @@ for i=1:length(frameTimeSteps)
     figure(15)
     imshow(matrixToPlotScale(sideOffset+1:sideLength-sideOffset,sideOffset+1:sideLength-sideOffset,:))
     drawnow
-    print( 15, '-djpeg', sprintf('frames/frmX2%d.jpg', i))
+    print( 15, '-djpeg', sprintf('frames/frmX4%d.jpg', i))
 end
 
 disp('making ffmpeg movie')
-system('"C:\Users\Yiping Wang\Documents\ffmpeg\bin\ffmpeg" -y -r 10 -i frames/frmX2%d.jpg frames/X2.mov')
+system('"C:\Users\Yiping Wang\Documents\ffmpeg\bin\ffmpeg" -y -r 10 -i frames/frmX4%d.jpg frames/X4.mov')
 disp('done with ffmpeg movie')
 %end
