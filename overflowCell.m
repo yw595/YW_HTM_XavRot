@@ -2,6 +2,8 @@ function [LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,colonies,newOverflowCoord1 newOverflowCoor
     newOverflowLRKOVal newOverflowRRKOVal newOverflowIiVal newOverflowNiVal newOverflowColoniesVal] ... 
     = overflowCell(varargin)
 
+    global onPlate
+
     %randCoords = [-1 1; -1 0; -1 -1; 0 1; 0 -1; 1 1; 1 0; 1 -1];
     LIKO = varargin{1};
     RIKO = varargin{2};
@@ -50,7 +52,7 @@ function [LIKO,RIKO,LRKO,RRKO,Ii,Ni,X,colonies,newOverflowCoord1 newOverflowCoor
     end
     
     if(1)
-    [XDist XNearestBorder] = bwdist(X==0);
+    [XDist XNearestBorder] = bwdist(X==0 & onPlate,'chessboard');
     nearestBorderCoord1 = mod(XNearestBorder(overflowCoord1,overflowCoord2)-1,sideLength)+1;
     nearestBorderCoord2 = floor((double(XNearestBorder(overflowCoord1,overflowCoord2)) -1 )/ (sideLength*1.0))+1;
     randCoords=[];

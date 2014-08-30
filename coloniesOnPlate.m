@@ -15,6 +15,7 @@ withAdaptive = 0;
 
 %%% Constants %%%
 
+global sideLength midPoint
 sideLength = 200;
 midPoint = ceil(sideLength/2.);
 quarterPt = floor(midPoint/2);
@@ -61,7 +62,50 @@ Lstore = zeros(1,numTimeSteps);
 
 %%% Initial Conditions %%%
 
-X = zeros(sideLength, sideLength); 
+X = zeros(sideLength, sideLength);
+[coords1 coords2] = meshgrid(1:sideLength,1:sideLength);
+global onPlate horzPlateEdge vertPlateEdge diffKernel1 diffKernel2 pointsBorderToInside1 pointsBorderToInside2
+onPlate = (sqrt((coords1-midPoint).^2 + (coords2-midPoint).^2) <= (midPoint-1));
+horzPlateEdge = ~onPlate & ([zeros(sideLength,1) onPlate(:,1:end-1)] | [onPlate(:,2:end) zeros(sideLength,1)]);
+vertPlateEdge = ~onPlate & ([zeros(1,sideLength); onPlate(1:end-1,:)] | [onPlate(2:end,:); zeros(1,sideLength)]);
+pointsBorderToInside1 = containers.Map('KeyType','double','ValueType','double');
+pointsBorderToInside2 = containers.Map('KeyType','double','ValueType','double');
+for i=1:sideLength
+     if(abs(diff(find(horzPlateEdge(i,:))))==2)
+         jCoords=find(horzPlateEdge(i,:));
+         pointsBorderToInside1((jCoords(1)-1)*sideLength+i)=jCoords(1)*sideLength+i;
+         pointsBorderToInside1((jCoords(2)-1)*sideLength+i)=jCoords(1)*sideLength+i;
+     %else
+         horzPlateEdge(i,:) = zeros(1,sideLength);
+     end
+end
+for i=1:sideLength
+     if(abs(diff(find(vertPlateEdge(:,i))))==2)
+         jCoords=find(vertPlateEdge(:,i));
+         pointsBorderToInside2((i-1)*sideLength+jCoords(1))=(i-1)*sideLength+jCoords(1)+1;
+         pointsBorderToInside2((i-1)*sideLength+jCoords(2))=(i-1)*sideLength+jCoords(1)+1;
+     %else
+         vertPlateEdge(:,i) = zeros(sideLength,1);
+     end
+end
+% horzPlatePoint = horzPlateEdge;
+% for i=1:sideLength
+%     if(abs(diff(find(horzPlateEdge(i,:))))~=2)
+%         horzPlatePoint(i,:) = zeros(1,sideLength);
+%     else
+%         horzPlateEdge(i,:) = zeros(1,sideLength);
+%     end
+% end
+% vertPlatePoint = vertPlateEdge;
+% for i=1:sideLength
+%     if(abs(diff(find(vertPlateEdge(:,i))))~=2)
+%         vertPlatePoint(:,i) = zeros(sideLength,1);
+%     else
+%         vertPlateEdge(:,i) = zeros(sideLength,1);
+%     end
+% end
+diffKernel1 = [0 0 0; 1 -2 1; 0 0 0];
+diffKernel2 = [0 1 0; 0 -2 0; 0 1 0];
 LIKO = zeros(sideLength, sideLength); 
 RIKO = zeros(sideLength, sideLength);
 LRKO = zeros(sideLength, sideLength); 
@@ -141,9 +185,33 @@ initialL = 0;
 R(midPoint,midPoint) = initialR;
 L(midPoint,midPoint) = initialR;
 
+X(~onPlate) = 0;
+R(~onPlate) = 0;
+L(~onPlate) = 0;
+LIKO(~onPlate) = 0;
+RIKO(~onPlate) = 0;
+LRKO(~onPlate) = 0;
+RRKO(~onPlate) = 0;
+C(~onPlate) = 0;
+N(~onPlate) = 0;
+I(~onPlate) = 0;
+Ni(~onPlate) = 0;
+Ii(~onPlate) = 0;
+
 %%% Solving PDE Model %%%
 
-%diffKernel = [0 1 0; 1 -4 1; 0 1 0];
+%global diffKernel extendedL extendedR
+% diffKernel = [0 1 0; 1 -4 1; 0 1 0];
+% extendedL = [L(1,1) L(1,:) L(1,end);L(:,1) L L(:,end); L(end,1) L(end,:) L(end,end)];
+% extendedR = [R(1,1) R(1,:) R(1,end);R(:,1) R R(:,end); R(end,1) R(end,:) R(end,end)];
+% extendedC = [C(1,1) C(1,:) C(1,end);C(:,1) C C(:,end); C(end,1) C(end,:) C(end,end)];
+% extendedN = [N(1,1) N(1,:) N(1,end);N(:,1) N N(:,end); N(end,1) N(end,:) N(end,end)];
+% extendedI = [I(1,1) I(1,:) I(1,end);I(:,1) I I(:,end); I(end,1) I(end,:) I(end,end)];
+[extendedL1 extendedL2] = makeExtendedMatrix(L);
+[extendedR1 extendedR2] = makeExtendedMatrix(R);
+[extendedC1 extendedC2] = makeExtendedMatrix(C);
+[extendedN1 extendedN2] = makeExtendedMatrix(N);
+[extendedI1 extendedI2] = makeExtendedMatrix(I);
 %extendedL = [L(end,end) L(end,:) L(end,1);L(:,end) L L(:,1); L(1,end) L(1,:) L(1,1)];
 %extendedR = [R(end,end) R(end,:) R(end,1);R(:,end) R R(:,1); R(1,end) R(1,:) R(1,1)];
 % This is the the explicit and implicit methods
@@ -153,18 +221,22 @@ timeStep=1;
 while(timeStep <= numTimeSteps)
     timeStep*dt
     
+    if(timeStep<10)
+        max(max(extendedL1))
+    end
+    
     % L dynamics
-    diffusionTerm = makeDiffusionMatrix(L,dx,DL,timeStep,0);
+    diffusionTermL = makeDiffusionMatrix(L,dx,DL,timeStep,0,extendedL1,extendedL2);
     %diffusionTermL = DL*filter2(diffKernel,extendedL,'valid')/(dx)^2;
     productionTermL = kprodL*(X.*(~LIKO));
     if(withAutoInduction)
         productionTermL = productionTermL + kprodL*(X.*(~LIKO).*(~LRKO)).*L./(kautoL+L);
     end
     decayTermL = kdecayL*L;
-    changeTermL = diffusionTerm + productionTermL - decayTermL;
+    changeTermL = diffusionTermL + productionTermL - decayTermL;
     
     % R dynamics
-    diffusionTermR = makeDiffusionMatrix(R,dx,DR,timeStep,0);
+    diffusionTermR = makeDiffusionMatrix(R,dx,DR,timeStep,0,extendedR1,extendedR2);
     %diffusionTermR = DS*filter2(diffKernel,extendedR,'valid')/(dx)^2;
     productionTermR = kprodR*(X.*(~RIKO));
     if(withAutoInduction)
@@ -173,9 +245,9 @@ while(timeStep <= numTimeSteps)
     decayTermR = kdecayR*R;
     changeTermR = diffusionTermR + productionTermR - decayTermR;
     
-    diffusionTermC = makeDiffusionMatrix(C,dx,DC,timeStep,0);
-    diffusionTermN = makeDiffusionMatrix(N,dx,DN,timeStep,0);
-    diffusionTermI = makeDiffusionMatrix(I,dx,DI,timeStep,0);
+    diffusionTermC = makeDiffusionMatrix(C,dx,DC,timeStep,0,extendedC1,extendedC2);
+    diffusionTermN = makeDiffusionMatrix(N,dx,DN,timeStep,0,extendedN1,extendedN2);
+    diffusionTermI = makeDiffusionMatrix(I,dx,DI,timeStep,0,extendedI1,extendedI2);
     changeTermC = diffusionTermC;
     changeTermN = diffusionTermN;
     changeTermI = diffusionTermI;
@@ -205,6 +277,7 @@ while(timeStep <= numTimeSteps)
         C(C<-1/(sideLength*sideLength)*max(max(dt*consumptionTermC(consumptionTermC~=0))))=0;
     end
     if(min(min(consumptionTermN))~=0)
+        %-1/(sideLength*sideLength)*max(max(dt*consumptionTermN(consumptionTermN~=0)))
         N(N<-1/(sideLength*sideLength)*max(max(dt*consumptionTermN(consumptionTermN~=0))))=0;
     end
     if(min(min(consumptionTermI))~=0)
@@ -293,6 +366,16 @@ while(timeStep <= numTimeSteps)
     
     GFP = GFPnext;
     
+%     extendedL = [L(1,1) L(1,:) L(1,end);L(:,1) L L(:,end); L(end,1) L(end,:) L(end,end)];
+%     extendedR = [R(1,1) R(1,:) R(1,end);R(:,1) R R(:,end); R(end,1) R(end,:) R(end,end)];
+%     extendedC = [C(1,1) C(1,:) C(1,end);C(:,1) C C(:,end); C(end,1) C(end,:) C(end,end)];
+%     extendedN = [N(1,1) N(1,:) N(1,end);N(:,1) N N(:,end); N(end,1) N(end,:) N(end,end)];
+%     extendedI = [I(1,1) I(1,:) I(1,end);I(:,1) I I(:,end); I(end,1) I(end,:) I(end,end)];
+    [extendedL1 extendedL2] = makeExtendedMatrix(L);
+    [extendedR1 extendedR2] = makeExtendedMatrix(R);
+    [extendedC1 extendedC2] = makeExtendedMatrix(C);
+    [extendedN1 extendedN2] = makeExtendedMatrix(N);
+    [extendedI1 extendedI2] = makeExtendedMatrix(I);
 end
 toc
 
