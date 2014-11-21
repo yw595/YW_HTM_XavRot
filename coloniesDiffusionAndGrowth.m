@@ -31,7 +31,7 @@ classdef coloniesDiffusionAndGrowth
         dx = .1; %units of mm
         dy = .1; %units of mm
         dt = 0;
-        tend = 2400; % End time (s)
+        tend = 0; % End time (s)
         % cdag.timesToPrint = [1 25 50 75 100 200 300 500 1000];
         timesToPrint = [1 250 500 750 1000 1250 1500 1750 2000];
         %cdag.timesToPrint = cdag.dt*[1 2 3 4 5 6 7 8 9 10];
@@ -103,11 +103,12 @@ classdef coloniesDiffusionAndGrowth
     
     methods
         
-        function cdag = coloniesDiffusionAndGrowth(aSideLength)
+        function cdag = coloniesDiffusionAndGrowth(aSideLength,aTEnd)
             
             %set time steps
+            cdag.tend = aTEnd;
             cdag.dt = cdag.dx^2/max([cdag.DR,cdag.DL,cdag.DC,cdag.DN,cdag.DI])*.2495; %CFL constant
-            cdag.numTimeSteps = length(0:cdag.dt:cdag.tend);
+            cdag.numTimeSteps = length(0:cdag.dt:cdag.tend);            
             cdag.frameTimeSteps = 1:ceil(cdag.numTimeSteps/100):cdag.numTimeSteps;
             
             cdag.cmap = jet(length(cdag.timesToPrint));
@@ -442,41 +443,50 @@ classdef coloniesDiffusionAndGrowth
         function main(cdag)
             tic
             while(cdag.timeStep <= cdag.numTimeSteps)
-                cdag.runOneTimeStep();
+                cdag = cdag.runOneTimeStep();
             end
             toc
-            cdag.makeGraphics();
+            cdag = cdag.makeGraphics();
         end
         
         function cdag = runOneTimeStep(cdag)
             disp(num2str(cdag.timeStep*cdag.dt))
+            
+            cdag.Lstore(cdag.timeStep) = cdag.L(cdag.midPt,cdag.midPt);
+            cdag.Rstore(cdag.timeStep) = cdag.R(cdag.midPt,cdag.midPt);
 
             %L dynamics
-            diffusionTermL = cdag.makeDiffusionMatrix(cdag.L,cdag.DL,cdag.extendedL1,cdag.extendedL2);
+            diffusionTermL = cdag.makeDiffusionMatrix(cdag.DL,cdag.extendedL1,cdag.extendedL2);
+            cdag.L = cdag.L + cdag.dt*diffusionTermL;
             productionTermL = cdag.kprodL*(cdag.X.*(~cdag.LIKO));
             if(cdag.withAutoInduction)
                 productionTermL = productionTermL + ...
                     cdag.X.*(~cdag.LIKO).*(~cdag.LRKO).* ...
                     cdag.kprodL.*cdag.L./(cdag.kautoL+cdag.L);
             end
+            cdag.L = cdag.L + cdag.dt*productionTermL;
             decayTermL = cdag.kdecayL*cdag.L;
-            changeTermL = diffusionTermL + productionTermL - decayTermL;
+            cdag.L = cdag.L + cdag.dt*decayTermL;
+            %changeTermL = diffusionTermL + productionTermL - decayTermL;
             
             %R dynamics
-            diffusionTermR = cdag.makeDiffusionMatrix(cdag.R,cdag.DR,cdag.extendedR1,cdag.extendedR2);
+            diffusionTermR = cdag.makeDiffusionMatrix(cdag.DR,cdag.extendedR1,cdag.extendedR2);
+            cdag.R = cdag.R + cdag.dt*diffusionTermR;
             productionTermR = cdag.kprodR*(cdag.X.*(~cdag.RIKO));
             if(cdag.withAutoInduction)
                 productionTermR = productionTermR + ...
                     (cdag.X.*(~cdag.RIKO).*(~cdag.RRKO).*(~cdag.LRKO).* ...
                     cdag.kprodR.*cdag.R./(cdag.kautoR+cdag.R).* (cdag.L./(cdag.kcrossL + cdag.L)));
             end
+            cdag.R = cdag.R + cdag.dt*productionTermR;
             decayTermR = cdag.kdecayR*cdag.R;
-            changeTermR = diffusionTermR + productionTermR - decayTermR;
+            cdag.R = cdag.R + cdag.dt*decayTermR;
+            %changeTermR = diffusionTermR + productionTermR - decayTermR;
             
             %nutrient diffusion
-            diffusionTermC = cdag.makeDiffusionMatrix(cdag.C,cdag.DC,cdag.extendedC1,cdag.extendedC2);
-            diffusionTermN = cdag.makeDiffusionMatrix(cdag.N,cdag.DN,cdag.extendedN1,cdag.extendedN2);
-            diffusionTermI = cdag.makeDiffusionMatrix(cdag.I,cdag.DI,cdag.extendedI1,cdag.extendedI2);
+            diffusionTermC = cdag.makeDiffusionMatrix(cdag.DC,cdag.extendedC1,cdag.extendedC2);
+            diffusionTermN = cdag.makeDiffusionMatrix(cdag.DN,cdag.extendedN1,cdag.extendedN2);
+            diffusionTermI = cdag.makeDiffusionMatrix(cdag.DI,cdag.extendedI1,cdag.extendedI2);
             changeTermC = diffusionTermC;
             changeTermN = diffusionTermN;
             changeTermI = diffusionTermI;
@@ -572,16 +582,18 @@ classdef coloniesDiffusionAndGrowth
                 Lnext = cdag.L + min(newTimeStepL, newTimeStepR) * (changeTermL);
                 Rnext = cdag.R + min(newTimeStepL, newTimeStepR) * (changeTermR);
             else
-                Lnext = cdag.L + cdag.dt*changeTermL;
-                Rnext = cdag.R + cdag.dt*changeTermR;
-                GFPnext = cdag.R.*cdag.X.*cdag.RIKO;
+                muTemp1 = zeros(cdag.sideLength,cdag.sideLength);
+                muTemp2 = zeros(cdag.sideLength,cdag.sideLength);
+                muTemp1(cdag.mu~=0) = cdag.muMaxPrime./cdag.mu(cdag.mu~=0)-1;
+                muTemp1(muTemp1<0) = 0;
+                muTemp2(cdag.mu~=0) = cdag.muMax./cdag.mu(cdag.mu~=0)-1;
+                muTemp2(muTemp2<0) = 0;
+                changeTermGFP = 18542*cdag.X + ...
+                    ( 7454.1*(muTemp1)*(1./(1 + (.1667*muTemp2).^5.8725)) ).*(cdag.N==0).*(cdag.X~=0) + ...
+                    ( 8593.3*(muTemp2)*(1./(1 + (.3293*muTemp2).^4.9892)) ).*(cdag.I==0).*(cdag.X~=0);
+                cdag.GFP = cdag.GFP + cdag.dt*changeTermGFP.*cdag.RIKO.*cdag.R;
                 cdag.timeStep = cdag.timeStep + 1;
             end            
-            cdag.Lstore(cdag.timeStep) = cdag.L(cdag.midPt,cdag.midPt);
-            cdag.L = Lnext;            
-            cdag.Rstore(cdag.timeStep) = cdag.R(cdag.midPt,cdag.midPt);
-            cdag.R = Rnext;            
-            cdag.GFP = GFPnext;
             
             %make new extended matrices
             [cdag.extendedL1 cdag.extendedL2] = cdag.makeExtendedMatrix(cdag.L);
@@ -664,7 +676,6 @@ classdef coloniesDiffusionAndGrowth
                     matrixToPlotScale = uint16( (matrixToPlot - MINVAL) / (MAXVAL - MINVAL) * (2^16-1) );
                     if(i==5)
                         matrixToPlotScale(:,:,1) = cdag.X.*(~cdag.RIKO)*(2^16-1);
-                        saveMap=matrixToPlotScale;
                     end
                     
                     %plot horizontal cross-section for cdag.L and cdag.R images only
@@ -730,16 +741,19 @@ classdef coloniesDiffusionAndGrowth
             figure(9)
             surf(cdag.Ii)
             
-            %if(0)
-            system('rm frames/*2*.jpg')
-            MINVAL1=min(min(min(cdag.GFPAll2)));
-            MAXVAL1=max(max(max(cdag.GFPAll2)));
-            MINVAL2=min(min(min(cdag.XAll2)));
-            MAXVAL2=max(max(max(cdag.XAll2)));
-            MINVAL3=min(min(min(cdag.RAll2)));
-            MAXVAL3=max(max(max(cdag.RAll2)));
+            if(~exist('frames','dir'))
+                eval('mkdir frames');
+            end
+            
+            MINVALGFP = min(min(min(cdag.GFPAll2)));
+            MAXVALGFP = max(max(max(cdag.GFPAll2)));
+            MINVALX = min(min(min(cdag.XAll2)));
+            MAXVALX = max(max(max(cdag.XAll2)));
+            MINVALR = min(min(min(cdag.RAll2)));
+            MAXVALR = max(max(max(cdag.RAll2)));
             for i=1:length(cdag.frameTimeSteps)
                 cdag.GFP = cdag.GFPAll2(:,:,i);
+                %disp(max(max(cdag.GFPAll2(:,:,i))))
                 cdag.X = cdag.XAll2(:,:,i);
                 cdag.RIKO = cdag.RIKOAll2(:,:,i);
                 cdag.R = cdag.RAll2(:,:,i);
@@ -748,25 +762,27 @@ classdef coloniesDiffusionAndGrowth
                 matrixToPlot(:, :, 2) = cdag.GFP;
                 matrixToPlot(:, :, 3) = cdag.R.*(cdag.X==0);
                 matrixToPlotScale = uint16(zeros(size(matrixToPlot,1),size(matrixToPlot,2),size(matrixToPlot,3)));
-                matrixToPlotScale(:, :, 3) = uint16( (matrixToPlot(:, :, 3) - MINVAL3) / (MAXVAL3 - MINVAL3) * (2^16-1) );
-                matrixToPlotScale(:, :, 2) = uint16( (matrixToPlot(:, :, 2) - MINVAL1) / (MAXVAL1 - MINVAL1) * (2^16-1) );
+                matrixToPlotScale(:, :, 3) = uint16( (matrixToPlot(:, :, 3) - MINVALR) / (MAXVALR - MINVALR) * (2^16-1) );
+                matrixToPlotScale(:, :, 2) = uint16( (matrixToPlot(:, :, 2) - MINVALGFP) / (MAXVALGFP - MINVALGFP) * (2^16-1) );
+                %add baseline GFP value corresponding to 2000 on the RGB
+                %scale
                 matrixToPlotScale(:, :, 2) = min( uint16(matrixToPlotScale(:, :, 2) + uint16(cdag.RIKO*2000)), uint16(2^16-1));
-                matrixToPlotScale(:, :, 1) = uint16( (matrixToPlot(:, :, 1) - MINVAL2) / (MAXVAL2 - MINVAL2) * (2^16-1) );
+                matrixToPlotScale(:, :, 1) = uint16( (matrixToPlot(:, :, 1) - MINVALX) / (MAXVALX - MINVALX) * (2^16-1) );
                 figure(15)
                 imshow(matrixToPlotScale ...
                     (cdag.sideOffset+1:cdag.sideLength-cdag.sideOffset,cdag.sideOffset+1:cdag.sideLength-cdag.sideOffset,:))
                 drawnow
-                print( 15, '-djpeg', sprintf('frames/frmGFP4%d.jpg', i))
+                print( 15, '-djpeg', sprintf('frames/frmGFP%d.jpg', i))
             end
             
             disp('making ffmpeg movie')
-            system('"cdag.C:\Users\Yiping Wang\Documents\ffmpeg\bin\ffmpeg" -y -r 10 -i frames/frmGFP4%d.jpg frames/GFP4.mov')
+            system('"C:\Users\Yiping Wang\Documents\ffmpeg\bin\ffmpeg" -y -r 10 -i frames/frmGFP%d.jpg frames/GFP.mov')
             disp('done with ffmpeg movie')
             
-            MINVAL1=min(min(min(cdag.CAll2)));
-            MAXVAL1=max(max(max(cdag.CAll2)));
-            MINVAL2=min(min(min(cdag.XAll2)));
-            MAXVAL2=max(max(max(cdag.XAll2)));
+            MINVALC=min(min(min(cdag.CAll2)));
+            MAXVALC=max(max(max(cdag.CAll2)));
+            MINVALX=min(min(min(cdag.XAll2)));
+            MAXVALX=max(max(max(cdag.XAll2)));
             for i=1:length(cdag.frameTimeSteps)
                 cdag.C = cdag.CAll2(:,:,i);
                 cdag.X = cdag.XAll2(:,:,i);
@@ -774,17 +790,17 @@ classdef coloniesDiffusionAndGrowth
                 matrixToPlot(:, :, 2) = uint16(0);
                 matrixToPlot(:, :, 3) = cdag.C;
                 matrixToPlotScale = uint16(zeros(size(matrixToPlot,1),size(matrixToPlot,2),size(matrixToPlot,3)));
-                matrixToPlotScale(:,:,3) = uint16( (matrixToPlot(:,:,3) - MINVAL1) / (MAXVAL1 - MINVAL1) * (2^16-1) );
-                matrixToPlotScale(:,:,1) = uint16( (matrixToPlot(:,:,1) - MINVAL2) / (MAXVAL2 - MINVAL2) * (2^16-1) );
+                matrixToPlotScale(:,:,3) = uint16( (matrixToPlot(:,:,3) - MINVALC) / (MAXVALC - MINVALC) * (2^16-1) );
+                matrixToPlotScale(:,:,1) = uint16( (matrixToPlot(:,:,1) - MINVALX) / (MAXVALX - MINVALX) * (2^16-1) );
                 figure(15)
                 imshow(matrixToPlotScale ...
                     (cdag.sideOffset+1:cdag.sideLength-cdag.sideOffset,cdag.sideOffset+1:cdag.sideLength-cdag.sideOffset,:))
                 drawnow
-                print( 15, '-djpeg', sprintf('frames/frmX4%d.jpg', i))
+                print( 15, '-djpeg', sprintf('frames/frmX%d.jpg', i))
             end
             
             disp('making ffmpeg movie')
-            system('"cdag.C:\Users\Yiping Wang\Documents\ffmpeg\bin\ffmpeg" -y -r 10 -i frames/frmX4%d.jpg frames/X4.mov')
+            system('"C:\Users\Yiping Wang\Documents\ffmpeg\bin\ffmpeg" -y -r 10 -i frames/frmX%d.jpg frames/X.mov')
             disp('done with ffmpeg movie')
             %end
         end
