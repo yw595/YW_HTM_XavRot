@@ -3,7 +3,7 @@ classdef coloniesDiffusionAndGrowth
         withAutoInduction = 1;
         withAdaptive = 0;
         
-        sideLength = 200;
+        sideLength = 0;
         midPt = 0;
         quarterPt = 0;
         
@@ -76,13 +76,13 @@ classdef coloniesDiffusionAndGrowth
         RAll2 = [];
         
         onPlate = [];
-        horzPlateEdge = [];
-        vertPlateEdge = [];
-        pointsBorderToInside1 = [];
-        pointsBorderToInside2 = [];
+        plateBorderHorz = [];
+        plateBorderVert = [];
+        pointsBorderToInsideHorz = [];
+        pointsBorderToInsideVert = [];
         
-        diffKernel1 = [0 0 0; 1 -2 1; 0 0 0];
-        diffKernel2 = [0 1 0; 0 -2 0; 0 1 0];
+        diffKernelHorz = [0 0 0; 1 -2 1; 0 0 0];
+        diffKernelVert = [0 1 0; 0 -2 0; 0 1 0];
         
         extendedL1=[];extendedL2=[];
         extendedR1=[];extendedR2=[];
@@ -103,17 +103,21 @@ classdef coloniesDiffusionAndGrowth
     
     methods
         
-        function cdag = coloniesDiffusionAndGrowth()
+        function cdag = coloniesDiffusionAndGrowth(aSideLength)
             
+            %set time steps
             cdag.dt = cdag.dx^2/max([cdag.DR,cdag.DL,cdag.DC,cdag.DN,cdag.DI])*.2495; %CFL constant
-            
-            cdag.cmap = jet(length(cdag.timesToPrint));
             cdag.numTimeSteps = length(0:cdag.dt:cdag.tend);
             cdag.frameTimeSteps = 1:ceil(cdag.numTimeSteps/100):cdag.numTimeSteps;
             
+            cdag.cmap = jet(length(cdag.timesToPrint));
+            
+            %set spatial dimensions
+            cdag.sideLength = aSideLength;
             cdag.midPt = ceil(cdag.sideLength/2.0);
             cdag.quarterPt = floor(cdag.midPt/2);
             
+            %set biomass, genotype, and colonies matrices
             cdag.X = zeros(cdag.sideLength, cdag.sideLength);
             cdag.LIKO = zeros(cdag.sideLength, cdag.sideLength);
             cdag.RIKO = zeros(cdag.sideLength, cdag.sideLength);
@@ -121,9 +125,17 @@ classdef coloniesDiffusionAndGrowth
             cdag.RRKO = zeros(cdag.sideLength, cdag.sideLength);
             cdag.colonies = zeros(cdag.sideLength, cdag.sideLength);
             
-            cdag.X(ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*100/350),ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*50/350))=100/(.15*1.1*10^11);
-            cdag.colonies(ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*100/350),ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*50/350))=1;
-            cdag.colonyCenterCoords = [ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*100/350) ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*50/350)];
+            %set producer colony coordinates
+            cdag.X(ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*100/350), ...
+                ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*50/350)) = ...
+                100/(.15*1.1*10^11);
+            cdag.colonies(ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*100/350), ...
+                ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*50/350)) = ...
+                1;
+            cdag.colonyCenterCoords = [ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*100/350) ...
+                ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*50/350)];
+            
+            %set RIKO colony coordinates
             RIKOcoords=[160 25;
                 210 25;
                 275 65;
@@ -150,17 +162,27 @@ classdef coloniesDiffusionAndGrowth
                 220 295;
                 160 300];
             for i=1:length(RIKOcoords)
-                cdag.X(ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*RIKOcoords(i,1)/350),ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*RIKOcoords(i,2)/350))=100/(.15*1.1*10^11);
-                cdag.RIKO(ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*RIKOcoords(i,1)/350),ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*RIKOcoords(i,2)/350))=1;
-                cdag.colonies(ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*RIKOcoords(i,1)/350),ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*RIKOcoords(i,2)/350))=i+1;
-                cdag.colonyCenterCoords(end+1,:)=[ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*RIKOcoords(i,1)/350) ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*RIKOcoords(i,2)/350)];
+                cdag.X(ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*RIKOcoords(i,1)/350), ...
+                    ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*RIKOcoords(i,2)/350)) = ...
+                    100/(.15*1.1*10^11);
+                cdag.RIKO(ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*RIKOcoords(i,1)/350), ...
+                    ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*RIKOcoords(i,2)/350)) = ...
+                    1;
+                cdag.colonies(ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*RIKOcoords(i,1)/350), ...
+                    ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*RIKOcoords(i,2)/350)) = ...
+                    i+1;
+                cdag.colonyCenterCoords(end+1,:)=[ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*RIKOcoords(i,1)/350) ...
+                    ceil(cdag.sideOffset+(cdag.sideLength-2*cdag.sideOffset)*RIKOcoords(i,2)/350)];
             end
             
+            %set autoinducer, nutrient, and internal nutrient matrices
             cdag.R = zeros(cdag.sideLength, cdag.sideLength);
             cdag.L = zeros(cdag.sideLength, cdag.sideLength);
-            
+            cdag.R(cdag.midPt,cdag.midPt) = cdag.initialR;
+            cdag.L(cdag.midPt,cdag.midPt) = cdag.initialL;
             cdag.Rstore = zeros(1,cdag.numTimeSteps);
             cdag.Lstore = zeros(1,cdag.numTimeSteps);
+            %does this makes sense given nonzero R?
             cdag.GFP = cdag.R.*cdag.X.*cdag.RIKO;
             cdag.C = .5*.0012*1/(cdag.sideLength*cdag.sideLength)*ones(cdag.sideLength, cdag.sideLength);
             cdag.N = .0625*.0012*1/(cdag.sideLength*cdag.sideLength)*ones(cdag.sideLength, cdag.sideLength);
@@ -178,34 +200,59 @@ classdef coloniesDiffusionAndGrowth
             cdag.RIKOAll2 = zeros(cdag.sideLength, cdag.sideLength, length(cdag.frameTimeSteps));
             cdag.RAll2 = zeros(cdag.sideLength, cdag.sideLength, length(cdag.frameTimeSteps));
             
-            cdag.R(cdag.midPt,cdag.midPt) = cdag.initialR;
-            cdag.L(cdag.midPt,cdag.midPt) = cdag.initialL;
-            
+            %calculate boolean matrix onPlate representing a circular plate
             [coords1 coords2] = meshgrid(1:cdag.sideLength,1:cdag.sideLength);
             cdag.onPlate = (sqrt((coords1-cdag.midPt).^2 + (coords2-cdag.midPt).^2) <= (cdag.midPt-1));
-            cdag.horzPlateEdge = ~cdag.onPlate & ([zeros(cdag.sideLength,1) cdag.onPlate(:,1:end-1)] | [cdag.onPlate(:,2:end) zeros(cdag.sideLength,1)]);
-            cdag.vertPlateEdge = ~cdag.onPlate & ([zeros(1,cdag.sideLength); cdag.onPlate(1:end-1,:)] | [cdag.onPlate(2:end,:); zeros(1,cdag.sideLength)]);
-            cdag.pointsBorderToInside1 = containers.Map('KeyType','double','ValueType','double');
-            cdag.pointsBorderToInside2 = containers.Map('KeyType','double','ValueType','double');
+            %calculate plateBorderHorz and Vert as boolean matrices, which
+            %represent points not on the plate, but which horizontally or
+            %vertically border the plate
+            %for actual calculation, take the intersection of all points not
+            %on the plate, with horizontally or vertically shifted by one
+            %versions of onPlate
+            cdag.plateBorderHorz = ~cdag.onPlate & ...
+                ([zeros(cdag.sideLength,1) cdag.onPlate(:,1:end-1)] | ...
+                [cdag.onPlate(:,2:end) zeros(cdag.sideLength,1)]);
+            cdag.plateBorderVert = ~cdag.onPlate & ...
+                ([zeros(1,cdag.sideLength); cdag.onPlate(1:end-1,:)] | ...
+                [cdag.onPlate(2:end,:); zeros(1,cdag.sideLength)]);
+            %We must have a special case whenever onPlate consists of an
+            %isolated point in any row or column. For example, consider the
+            %following figure, where 1 represents regular onPlate points,
+            %and 2 isolated points, 
+            % 0 0 2 0 0
+            % 0 1 1 1 0
+            % 2 1 1 1 2
+            % 0 1 1 1 0
+            % 0 0 2 0 0
+            %In makeExtendedMatrix, we must map the values of isolated
+            %points to their horizontal and vertical neighbors. The
+            %following code detects isolated points since the corresponding
+            %plateBorderHorz or Vert points will be exactly 2 apart, and makes
+            %maps pointsBorderToInsideHorz and Vert that take the coordinates of the border
+            %points to those of the isolated point
+            %It also zeros out the isolated point in the plateBorder
+            %matrices, so they will only represent nonisolated points.
+            cdag.pointsBorderToInsideHorz = containers.Map('KeyType','double','ValueType','double');
+            cdag.pointsBorderToInsideVert = containers.Map('KeyType','double','ValueType','double');
             for i=1:cdag.sideLength
-                if(abs(diff(find(cdag.horzPlateEdge(i,:))))==2)
-                    jCoords=find(cdag.horzPlateEdge(i,:));
-                    cdag.pointsBorderToInside1((jCoords(1)-1)*cdag.sideLength+i)=jCoords(1)*cdag.sideLength+i;
-                    cdag.pointsBorderToInside1((jCoords(2)-1)*cdag.sideLength+i)=jCoords(1)*cdag.sideLength+i;
-                    %else
-                    cdag.horzPlateEdge(i,:) = zeros(1,cdag.sideLength);
+                if(abs(diff(find(cdag.plateBorderHorz(i,:))))==2)
+                    jCoords=find(cdag.plateBorderHorz(i,:));
+                    cdag.pointsBorderToInsideHorz((jCoords(1)-1)*cdag.sideLength+i)=jCoords(1)*cdag.sideLength+i;
+                    cdag.pointsBorderToInsideHorz((jCoords(2)-1)*cdag.sideLength+i)=jCoords(1)*cdag.sideLength+i;
+                    cdag.plateBorderHorz(i,:) = zeros(1,cdag.sideLength);
                 end
             end
             for i=1:cdag.sideLength
-                if(abs(diff(find(cdag.vertPlateEdge(:,i))))==2)
-                    jCoords=find(cdag.vertPlateEdge(:,i));
-                    cdag.pointsBorderToInside2((i-1)*cdag.sideLength+jCoords(1))=(i-1)*cdag.sideLength+jCoords(1)+1;
-                    cdag.pointsBorderToInside2((i-1)*cdag.sideLength+jCoords(2))=(i-1)*cdag.sideLength+jCoords(1)+1;
-                    %else
-                    cdag.vertPlateEdge(:,i) = zeros(cdag.sideLength,1);
+                if(abs(diff(find(cdag.plateBorderVert(:,i))))==2)
+                    jCoords=find(cdag.plateBorderVert(:,i));
+                    cdag.pointsBorderToInsideVert((i-1)*cdag.sideLength+jCoords(1))=(i-1)*cdag.sideLength+jCoords(1)+1;
+                    cdag.pointsBorderToInsideVert((i-1)*cdag.sideLength+jCoords(2))=(i-1)*cdag.sideLength+jCoords(1)+1;
+                    cdag.plateBorderVert(:,i) = zeros(cdag.sideLength,1);
                 end
             end
             
+            %zero all concentration, biomass and genotype matrices not on
+            %the plate
             cdag.X(~cdag.onPlate) = 0;
             cdag.R(~cdag.onPlate) = 0;
             cdag.L(~cdag.onPlate) = 0;
@@ -219,112 +266,69 @@ classdef coloniesDiffusionAndGrowth
             cdag.Ni(~cdag.onPlate) = 0;
             cdag.Ii(~cdag.onPlate) = 0;
             
+            %calculate extended matrices, where the values of the
+            %plateBorder points match either their horizontal or vertical
+            %onPlate neighbors
             [cdag.extendedL1 cdag.extendedL2] = cdag.makeExtendedMatrix(cdag.L);
             [cdag.extendedR1 cdag.extendedR2] = cdag.makeExtendedMatrix(cdag.R);
-            [cdag.extendedC1 cdag.extendedC2] = cdag.makeExtendedMatrix(cdag.C);
+            [cdag.extendedC1, cdag.extendedC2] = cdag.makeExtendedMatrix(cdag.C);
             [cdag.extendedN1 cdag.extendedN2] = cdag.makeExtendedMatrix(cdag.N);
             [cdag.extendedI1 cdag.extendedI2] = cdag.makeExtendedMatrix(cdag.I);
         end
         
-        function diffusionMatrix = makeDiffusionMatrix(cdag,matrix,Dmatrix,extendedMatrix1,extendedMatrix2)
-            diffusionMatrix = Dmatrix*filter2(cdag.diffKernel1,extendedMatrix1,'valid')/(cdag.dx)^2 + ...
-                Dmatrix*filter2(cdag.diffKernel2,extendedMatrix2,'valid')/(cdag.dx)^2;
+        %
+        %zero values outside the plate to prevent diffusion there
+        function diffusionMatrix = makeDiffusionMatrix(cdag,Dmatrix,extendedMatrixHorz,extendedMatrixVert)
+            diffusionMatrix = Dmatrix*filter2(cdag.diffKernelHorz,extendedMatrixHorz,'valid')/(cdag.dx)^2 + ...
+                Dmatrix*filter2(cdag.diffKernelVert,extendedMatrixVert,'valid')/(cdag.dx)^2;
             diffusionMatrix(~cdag.onPlate) = 0;
-            if(0)
-                cdag.midPt=size(matrix,1)/2;
-                diffusionMatrix = zeros(size(matrix,1),size(matrix,2));
-                diffusionMatrix(2:end-1,2:end-1) = Dmatrix*(matrix(2:end-1,1:end-2) + matrix(2:end-1,3:end) - ...
-                    4*matrix(2:end-1,2:end-1) + matrix(1:end-2,2:end-1) + matrix(3:end,2:end-1))/(cdag.dx)^2;
-                diffusionMatrix(1,2:end-1) = Dmatrix*(matrix(1,1:end-2) + matrix(1,3:end) + matrix(2,2:end-1) - 3*matrix(1,2:end-1))/(cdag.dx)^2;
-                diffusionMatrix(end,2:end-1) = Dmatrix*(matrix(end,1:end-2) + matrix(end,3:end) + matrix(end-1,2:end-1) - 3*matrix(end,2:end-1))/(cdag.dx)^2;
-                diffusionMatrix(2:end-1,1) = Dmatrix*(matrix(1:end-2,1) + matrix(3:end,1) + matrix(2:end-1,2) - 3*matrix(2:end-1,1))/(cdag.dx)^2;
-                diffusionMatrix(2:end-1,end) = Dmatrix*(matrix(1:end-2,end) + matrix(3:end,end) + matrix(2:end-1,end-1) - 3*matrix(2:end-1,end))/(cdag.dx)^2;
-                diffusionMatrix(1,1) = Dmatrix*(matrix(2,1) + matrix(1,2) - 2*matrix(1,1))/(cdag.dx)^2;
-                diffusionMatrix(1,end) = Dmatrix*(matrix(2,end) + matrix(1,end-1) - 2*matrix(1,end))/(cdag.dx)^2;
-                diffusionMatrix(end,1) = Dmatrix*(matrix(end-1,1) + matrix(end,2) - 2*matrix(end,1))/(cdag.dx)^2;
-                diffusionMatrix(end,end) = Dmatrix*(matrix(end-1,end) + matrix(end,end-1) - 2*matrix(end,end))/(cdag.dx)^2;
-            end
         end
         
-        function [extendedMatrix1 extendedMatrix2] = makeExtendedMatrix(cdag,matrix)
-            matrix1=matrix;
-            matrix1(cdag.horzPlateEdge) = matrix(cdag.onPlate & ([zeros(cdag.sideLength,1) cdag.horzPlateEdge(:,1:end-1)] | ...
-                [cdag.horzPlateEdge(:,2:end) zeros(cdag.sideLength,1)]));
-            matrix2=matrix;
-            matrix2(cdag.vertPlateEdge) = matrix(cdag.onPlate & ([zeros(1,cdag.sideLength); cdag.vertPlateEdge(1:end-1,:)] | ...
-                [cdag.vertPlateEdge(2:end,:); zeros(1,cdag.sideLength)]));
+        function [extendedMatrixHorz extendedMatrixVert] = makeExtendedMatrix(cdag,matrix)
+            %Calculate the horizontal and vertical neighbors of the
+            %plateBorder points, by taking the intersection of onPlate and
+            %horizontally and vertically shifted versions of the plateBorders 
+            matrixHorz=matrix;
+            matrixHorz(cdag.plateBorderHorz) = matrix(cdag.onPlate & ...
+                ([zeros(cdag.sideLength,1) cdag.plateBorderHorz(:,1:end-1)] | ...
+                [cdag.plateBorderHorz(:,2:end) zeros(cdag.sideLength,1)]));
+            matrixVert=matrix;
+            matrixVert(cdag.plateBorderVert) = matrix(cdag.onPlate & ...
+                ([zeros(1,cdag.sideLength); cdag.plateBorderVert(1:end-1,:)] | ...
+                [cdag.plateBorderVert(2:end,:); zeros(1,cdag.sideLength)]));
             
-            pointsBorder1 = keys(cdag.pointsBorderToInside1);
-            for i=1:length(pointsBorder1)
-                matrix1(pointsBorder1{i}) = matrix1(cdag.pointsBorderToInside1(pointsBorder1{i}));
+            %map the values of the isolated points to their horizontal and
+            %vertical neighbors
+            pointsBorderHorz = keys(cdag.pointsBorderToInsideHorz);
+            for i=1:length(pointsBorderHorz)
+                matrixHorz(pointsBorderHorz{i}) = matrixHorz(cdag.pointsBorderToInsideHorz(pointsBorderHorz{i}));
             end
-            pointsBorder2 = keys(cdag.pointsBorderToInside2);
-            for i=1:length(pointsBorder2)
-                matrix2(pointsBorder2{i}) = matrix2(cdag.pointsBorderToInside2(pointsBorder2{i}));
+            pointsBorderVert = keys(cdag.pointsBorderToInsideVert);
+            for i=1:length(pointsBorderVert)
+                matrixVert(pointsBorderVert{i}) = matrixVert(cdag.pointsBorderToInsideVert(pointsBorderVert{i}));
             end
-            extendedMatrix1 = [matrix1(1,1) matrix1(1,:) matrix1(1,end);matrix1(:,1) matrix1 matrix1(:,end); matrix1(end,1) matrix1(end,:) matrix1(end,end)];
-            extendedMatrix2 = [matrix2(1,1) matrix2(1,:) matrix2(1,end);matrix2(:,1) matrix2 matrix2(:,end); matrix2(end,1) matrix2(end,:) matrix2(end,end)];
-        end
-        
-        function [matrixNext newTimeStep] = adaptiveTimeStep(cdag,matrixCurrent,changeTerm,oldTimeStep)
-            matrixNext = matrixCurrent + cdag.dt*changeTerm;
-            newTimeStep = oldTimeStep + 1;
             
-            %take possibleDt as ratio of current state matrix and change in matrix,
-            %align with default cdag.dt
-            possibleDt = min(min(abs(matrixCurrent./(matrixCurrent-matrixNext))));
-            possibleDt = possibleDt - mod(possibleDt,cdag.dt);
-            if(possibleDt >= 1000*cdag.dt)
-                possibleDt=1000*cdag.dt;
-                matrixNext1 = matrixNext;
-                
-                [junk icdag.dx1] = min(abs(matrixCurrent./(matrixCurrent-matrixNext)));
-                [junk icdag.dx2] = min(min(abs(matrixCurrent./(matrixCurrent-matrixNext))));
-                %dimatrixp('HERE')
-                %timematrixtep
-                %icdag.dx1(icdag.dx2)
-                %icdag.dx2
-                %matrix(icdag.dx1(icdag.dx2),icdag.dx2)
-                %matrixnext(icdag.dx1(icdag.dx2),icdag.dx2)
-                %pomatrixmatrixibleDt
-                %dimatrixp('HERE')
-                %pomatrixmatrixibleDt
-                
-                %take step with current possibleDt, if relative change compared
-                %with taking a step of size cdag.dt is greater than .01, halve
-                %possibleDt
-                matrixNext = matrix + possibleDt*changeTerm;
-                %max(max(abmatrix((matrixnext-matrixnextmatrixtore)./matrixnextmatrixtore)))
-                while(max(max(abs((matrixNext-matrixNext1)./matrixNext1)))>.01)
-                    possibleDt=possibleDt/2-mod(possibleDt/2,cdag.dt);
-                    matrixNext = matrix + possibleDt*changeTerm;
-                    %pomatrixmatrixibleDt
-                end
-                newTimeStep = oldTimeStep + uint64(possibleDt/cdag.dt);
-                
-                %pomatrixmatrixibleDt
-                %max(max(matrix))
-                %timematrixtep*cdag.dt
-                %dimatrixp((max(max(matrix))-min(min(matrix)))/(max(max(matrix))))
-                %dimatrixp((max(max(matrixnext))-min(min(matrixnext)))/(max(max(matrixnext))))
-                %matrixubplot(ceil((length(matchematrixTimematrixToPrint)+1)/4),4,1+find(matchematrixTimematrixToPrint))
-                %imagematrixc(abmatrix((matrixnext-matrixnextmatrixtore)./matrixnext))
-                %title(['t = ' num2matrixtr(uint64(timematrixtep*cdag.dt))])
-                %aximatrix([1 matrixideLength 1 matrixideLength])
-                %hold on
-            end
+            %extend the horizontal and vertical borders by one at each end,  
+            extendedMatrixHorz = [matrixHorz(1,1) matrixHorz(1,:) matrixHorz(1,end); ...
+                matrixHorz(:,1) matrixHorz matrixHorz(:,end); ...
+                matrixHorz(end,1) matrixHorz(end,:) matrixHorz(end,end)];
+            extendedMatrixVert = [matrixVert(1,1) matrixVert(1,:) matrixVert(1,end); ...
+                matrixVert(:,1) matrixVert matrixVert(:,end); ...
+                matrixVert(end,1) matrixVert(end,:) matrixVert(end,end)];
         end
         
-        function [cdag newOverflowCoord1 newOverflowCoord2 newOverflowXVal newOverflowLIKOVal newOverflowRIKOVal ...
+        function [cdag newOverflowCoordVert newOverflowCoordHorz newOverflowXVal newOverflowLIKOVal newOverflowRIKOVal ...
                 newOverflowLRKOVal newOverflowRRKOVal newOverflowIiVal newOverflowNiVal newOverflowColoniesVal] ...
                 = overflowCell(varargin)
             
             cdag = varargin{1};
-            
-            %randCoords = [-1 1; -1 0; -1 -1; 0 1; 0 -1; 1 1; 1 0; 1 -1];
-            overflowCoord1 = varargin{2};
-            overflowCoord2 = varargin{3};
+
+            overflowCoordVert = varargin{2};
+            overflowCoordHorz = varargin{3};
             colony = varargin{4};
+            
+            %check if this is a newly dividing cell, or we have overflow
+            %biomass coming in from an adjacent cell
             first=1;
             if(length(varargin)>4)
                 overflowXVal = varargin{5};
@@ -342,163 +346,96 @@ classdef coloniesDiffusionAndGrowth
                 centerCoord2 = cdag.colonyCenterCoords(colony,2);
             end
             
-            newOverflowLIKOVal = cdag.LIKO(overflowCoord1,overflowCoord2);
-            newOverflowRIKOVal = cdag.RIKO(overflowCoord1,overflowCoord2);
-            newOverflowLRKOVal = cdag.LRKO(overflowCoord1,overflowCoord2);
-            newOverflowRRKOVal = cdag.RRKO(overflowCoord1,overflowCoord2);
-            newOverflowColoniesVal = cdag.colonies(overflowCoord1,overflowCoord2);
+            newOverflowLIKOVal = cdag.LIKO(overflowCoordVert,overflowCoordHorz);
+            newOverflowRIKOVal = cdag.RIKO(overflowCoordVert,overflowCoordHorz);
+            newOverflowLRKOVal = cdag.LRKO(overflowCoordVert,overflowCoordHorz);
+            newOverflowRRKOVal = cdag.RRKO(overflowCoordVert,overflowCoordHorz);
+            newOverflowColoniesVal = cdag.colonies(overflowCoordVert,overflowCoordHorz);
             if(first)
-                newOverflowIiVal = cdag.Ii(overflowCoord1,overflowCoord2);
-                newOverflowNiVal = cdag.Ni(overflowCoord1,overflowCoord2);
-                newOverflowXVal = cdag.X(overflowCoord1,overflowCoord2)/2;
+                newOverflowIiVal = cdag.Ii(overflowCoordVert,overflowCoordHorz);
+                newOverflowNiVal = cdag.Ni(overflowCoordVert,overflowCoordHorz);
+                newOverflowXVal = cdag.X(overflowCoordVert,overflowCoordHorz)/2;
             else
-                newOverflowIiVal = cdag.Ii(overflowCoord1,overflowCoord2);
-                newOverflowNiVal = cdag.Ni(overflowCoord1,overflowCoord2);
-                newOverflowXVal = cdag.X(overflowCoord1,overflowCoord2);
+                newOverflowIiVal = cdag.Ii(overflowCoordVert,overflowCoordHorz);
+                newOverflowNiVal = cdag.Ni(overflowCoordVert,overflowCoordHorz);
+                newOverflowXVal = cdag.X(overflowCoordVert,overflowCoordHorz);
             end
             
             if(1)
+                
+                %calculate nearest border point, convert to horizontal and
+                %vertical coordinates
                 [XDist XNearestBorder] = bwdist(cdag.X==0 & cdag.onPlate,'chessboard');
-                nearestBorderCoord1 = mod(XNearestBorder(overflowCoord1,overflowCoord2)-1,cdag.sideLength)+1;
-                nearestBorderCoord2 = floor((double(XNearestBorder(overflowCoord1,overflowCoord2)) -1 )/ (cdag.sideLength*1.0))+1;
-                randCoords=[];
+                nearestBorderCoordVert = ...
+                    mod(XNearestBorder(overflowCoordVert,overflowCoordHorz)-1,cdag.sideLength)+1;
+                nearestBorderCoordHorz = ...
+                    floor((double(XNearestBorder(overflowCoordVert,overflowCoordHorz)) -1 )/ (cdag.sideLength*1.0))+1;
+                randCoordChanges=[];
                 
-                if(nearestBorderCoord1 < overflowCoord1)
-                    randCoords(end+1,:) = [-1 0];
+                %add to randCoordChanges according to whether we have
+                %border points in any direction
+                if(nearestBorderCoordVert < overflowCoordVert)
+                    randCoordChanges(end+1,:) = [-1 0];
                 end
-                if(nearestBorderCoord1 > overflowCoord1)
-                    randCoords(end+1,:) = [1 0];
+                if(nearestBorderCoordVert > overflowCoordVert)
+                    randCoordChanges(end+1,:) = [1 0];
                 end
-                if(nearestBorderCoord2 < overflowCoord2)
-                    randCoords(end+1,:) = [0 -1];
+                if(nearestBorderCoordHorz < overflowCoordHorz)
+                    randCoordChanges(end+1,:) = [0 -1];
                 end
-                if(nearestBorderCoord2 > overflowCoord2)
-                    randCoords(end+1,:) = [0 1];
+                if(nearestBorderCoordHorz > overflowCoordHorz)
+                    randCoordChanges(end+1,:) = [0 1];
                 end
-                if(nearestBorderCoord1 < overflowCoord1 && nearestBorderCoord2 < overflowCoord2)
-                    randCoords(end+1,:) = [-1 -1];
+                if(nearestBorderCoordVert < overflowCoordVert && nearestBorderCoordHorz < overflowCoordHorz)
+                    randCoordChanges(end+1,:) = [-1 -1];
                 end
-                if(nearestBorderCoord1 < overflowCoord1 && nearestBorderCoord2 > overflowCoord2)
-                    randCoords(end+1,:) = [-1 1];
+                if(nearestBorderCoordVert < overflowCoordVert && nearestBorderCoordHorz > overflowCoordHorz)
+                    randCoordChanges(end+1,:) = [-1 1];
                 end
-                if(nearestBorderCoord1 > overflowCoord1 && nearestBorderCoord2 < overflowCoord2)
-                    randCoords(end+1,:) = [1 -1];
+                if(nearestBorderCoordVert > overflowCoordVert && nearestBorderCoordHorz < overflowCoordHorz)
+                    randCoordChanges(end+1,:) = [1 -1];
                 end
-                if(nearestBorderCoord1 > overflowCoord1 && nearestBorderCoord2 > overflowCoord2)
-                    randCoords(end+1,:) = [1 1];
+                if(nearestBorderCoordVert > overflowCoordVert && nearestBorderCoordHorz > overflowCoordHorz)
+                    randCoordChanges(end+1,:) = [1 1];
                 end
                 
-                if(length(randCoords)==0)
-                    newOverflowCoord1=overflowCoord1;
-                    newOverflowCoord2=overflowCoord2;
+                %if randCoordChanges is not empty, select one of the randCoordChanges 
+                %entries, calculate newOverflowCoords with cyclic boundary conditions
+                if(length(randCoordChanges)==0)
+                    newOverflowCoordVert=overflowCoordVert;
+                    newOverflowCoordHorz=overflowCoordHorz;
                 else
-                    numRand = randi(size(randCoords,1),1);
-                    newOverflowCoord1=overflowCoord1+randCoords(numRand,1);
-                    if(newOverflowCoord1>cdag.sideLength)
-                        newOverflowCoord1=1;
+                    numRand = randi(size(randCoordChanges,1),1);
+                    newOverflowCoordVert=overflowCoordVert+randCoordChanges(numRand,1);
+                    if(newOverflowCoordVert>cdag.sideLength)
+                        newOverflowCoordVert=1;
                     end
-                    if(newOverflowCoord1<1)
-                        newOverflowCoord1=cdag.sideLength;
+                    if(newOverflowCoordVert<1)
+                        newOverflowCoordVert=cdag.sideLength;
                     end
-                    newOverflowCoord2=overflowCoord2+randCoords(numRand,2);
-                    if(newOverflowCoord2>cdag.sideLength)
-                        newOverflowCoord2=1;
+                    newOverflowCoordHorz=overflowCoordHorz+randCoordChanges(numRand,2);
+                    if(newOverflowCoordHorz>cdag.sideLength)
+                        newOverflowCoordHorz=1;
                     end
-                    if(newOverflowCoord2<1)
-                        newOverflowCoord2=cdag.sideLength;
-                    end
-                end
-            end
-            
-            if(0)
-                if(colony==0)
-                    newOverflowCoord1 = overflowCoord1;
-                    newOverflowCoord2 = overflowCoord2;
-                elseif(overflowCoord1 == centerCoord1 && overflowCoord2 == centerCoord2)
-                    randCoords = [-1 1; -1 0; -1 -1; 0 1; 0 -1; 1 1; 1 0; 1 -1];
-                    numRand = randi(size(randCoords,1),1);
-                    newOverflowCoord1=overflowCoord1+randCoords(numRand,1);
-                    if(newOverflowCoord1>cdag.sideLength)
-                        newOverflowCoord1=1;
-                    end
-                    if(newOverflowCoord1<1)
-                        newOverflowCoord1=cdag.sideLength;
-                    end
-                    newOverflowCoord2=overflowCoord2+randCoords(numRand,2);
-                    if(newOverflowCoord2>cdag.sideLength)
-                        newOverflowCoord2=1;
-                    end
-                    if(newOverflowCoord2<1)
-                        newOverflowCoord2=cdag.sideLength;
-                    end
-                else
-                    slope = (overflowCoord1 - centerCoord1) / (overflowCoord2 - centerCoord2);
-                    if(isnan(slope))
-                        if(overflowCoord1<centerCoord1)
-                            newOverflowCoord1=overflowCoord1-1;newOverflowCoord2=overflowCoord2;
-                        end
-                        if(overflowCoord1>centerCoord1)
-                            newOverflowCoord1=overflowCoord1+1;newOverflowCoord2=overflowCoord2;
-                        end
-                    else
-                        if(slope<=1/2 && slope>-1/2)
-                            if(overflowCoord2<centerCoord2)
-                                newOverflowCoord1=overflowCoord1;newOverflowCoord2=overflowCoord2-1;
-                            end
-                            if(overflowCoord2>centerCoord2)
-                                newOverflowCoord1=overflowCoord1;newOverflowCoord2=overflowCoord2+1;
-                            end
-                        elseif(slope<=-1/2 && slope>-2)
-                            if(overflowCoord2<centerCoord2)
-                                newOverflowCoord1=overflowCoord1-1;newOverflowCoord2=overflowCoord2-1;
-                            end
-                            if(overflowCoord2>centerCoord2)
-                                newOverflowCoord1=overflowCoord1+1;newOverflowCoord2=overflowCoord2+1;
-                            end
-                        elseif(slope<=-2 || slope>2)
-                            if(overflowCoord1<centerCoord1)
-                                newOverflowCoord1=overflowCoord1-1;newOverflowCoord2=overflowCoord2;
-                            end
-                            if(overflowCoord1>centerCoord1)
-                                newOverflowCoord1=overflowCoord1+1;newOverflowCoord2=overflowCoord2;
-                            end
-                        elseif(slope<=2 && slope > 1/2)
-                            if(overflowCoord2<centerCoord2)
-                                newOverflowCoord1=overflowCoord1+1;newOverflowCoord2=overflowCoord2-1;
-                            end
-                            if(overflowCoord2>centerCoord2)
-                                newOverflowCoord1=overflowCoord1-1;newOverflowCoord2=overflowCoord2+1;
-                            end
-                        end
-                    end
-                    if(newOverflowCoord1>cdag.sideLength)
-                        newOverflowCoord1=1;
-                    end
-                    if(newOverflowCoord1<1)
-                        newOverflowCoord1=cdag.sideLength;
-                    end
-                    if(newOverflowCoord2>cdag.sideLength)
-                        newOverflowCoord2=1;
-                    end
-                    if(newOverflowCoord2<1)
-                        newOverflowCoord2=cdag.sideLength;
+                    if(newOverflowCoordHorz<1)
+                        newOverflowCoordHorz=cdag.sideLength;
                     end
                 end
             end
             
             if(first)
-                cdag.Ii(overflowCoord1,overflowCoord2) = cdag.Ii(overflowCoord1,overflowCoord2);
-                cdag.Ni(overflowCoord1,overflowCoord2) = cdag.Ni(overflowCoord1,overflowCoord2);
-                cdag.X(overflowCoord1,overflowCoord2) = cdag.X(overflowCoord1,overflowCoord2)/2;
+                cdag.Ii(overflowCoordVert,overflowCoordHorz) = cdag.Ii(overflowCoordVert,overflowCoordHorz);
+                cdag.Ni(overflowCoordVert,overflowCoordHorz) = cdag.Ni(overflowCoordVert,overflowCoordHorz);
+                cdag.X(overflowCoordVert,overflowCoordHorz) = cdag.X(overflowCoordVert,overflowCoordHorz)/2;
             else
-                cdag.LIKO(overflowCoord1,overflowCoord2) = overflowLIKOVal;
-                cdag.RIKO(overflowCoord1,overflowCoord2) = overflowRIKOVal;
-                cdag.LRKO(overflowCoord1,overflowCoord2) = overflowLRKOVal;
-                cdag.RRKO(overflowCoord1,overflowCoord2) = overflowRRKOVal;
-                cdag.colonies(overflowCoord1,overflowCoord2) = overflowColoniesVal;
-                cdag.Ii(overflowCoord1,overflowCoord2) = overflowIiVal;
-                cdag.Ni(overflowCoord1,overflowCoord2) = overflowNiVal;
-                cdag.X(overflowCoord1,overflowCoord2) = overflowXVal;
+                cdag.LIKO(overflowCoordVert,overflowCoordHorz) = overflowLIKOVal;
+                cdag.RIKO(overflowCoordVert,overflowCoordHorz) = overflowRIKOVal;
+                cdag.LRKO(overflowCoordVert,overflowCoordHorz) = overflowLRKOVal;
+                cdag.RRKO(overflowCoordVert,overflowCoordHorz) = overflowRRKOVal;
+                cdag.colonies(overflowCoordVert,overflowCoordHorz) = overflowColoniesVal;
+                cdag.Ii(overflowCoordVert,overflowCoordHorz) = overflowIiVal;
+                cdag.Ni(overflowCoordVert,overflowCoordHorz) = overflowNiVal;
+                cdag.X(overflowCoordVert,overflowCoordHorz) = overflowXVal;
             end
         end
         
@@ -512,30 +449,31 @@ classdef coloniesDiffusionAndGrowth
         end
         
         function cdag = runOneTimeStep(cdag)
-            %disp(cdag.X)
             disp(num2str(cdag.timeStep*cdag.dt))
-            %disp(num2str(max(max(cdag.Ii))))
-            
-            % cdag.L cdag.dynamics
+
+            %L dynamics
             diffusionTermL = cdag.makeDiffusionMatrix(cdag.L,cdag.DL,cdag.extendedL1,cdag.extendedL2);
-            %diffusionTermL = cdag.DL*filter2(diffKernel,extendedL,'valid')/(cdag.dx)^2;
             productionTermL = cdag.kprodL*(cdag.X.*(~cdag.LIKO));
             if(cdag.withAutoInduction)
-                productionTermL = productionTermL + cdag.kprodL*(cdag.X.*(~cdag.LIKO).*(~cdag.LRKO)).*cdag.L./(cdag.kautoL+cdag.L);
+                productionTermL = productionTermL + ...
+                    cdag.X.*(~cdag.LIKO).*(~cdag.LRKO).* ...
+                    cdag.kprodL.*cdag.L./(cdag.kautoL+cdag.L);
             end
             decayTermL = cdag.kdecayL*cdag.L;
             changeTermL = diffusionTermL + productionTermL - decayTermL;
             
-            % cdag.R cdag.dynamics
+            %R dynamics
             diffusionTermR = cdag.makeDiffusionMatrix(cdag.R,cdag.DR,cdag.extendedR1,cdag.extendedR2);
-            %diffusionTermR = DS*filter2(diffKernel,extendedR,'valid')/(cdag.dx)^2;
             productionTermR = cdag.kprodR*(cdag.X.*(~cdag.RIKO));
             if(cdag.withAutoInduction)
-                productionTermR = productionTermR + (cdag.kprodR*(cdag.X.*(~cdag.RIKO).*(~cdag.RRKO).*(~cdag.LRKO).*cdag.R./(cdag.kautoR+cdag.R)).* (cdag.L./(cdag.kcrossL + cdag.L)));
+                productionTermR = productionTermR + ...
+                    (cdag.X.*(~cdag.RIKO).*(~cdag.RRKO).*(~cdag.LRKO).* ...
+                    cdag.kprodR.*cdag.R./(cdag.kautoR+cdag.R).* (cdag.L./(cdag.kcrossL + cdag.L)));
             end
             decayTermR = cdag.kdecayR*cdag.R;
             changeTermR = diffusionTermR + productionTermR - decayTermR;
             
+            %nutrient diffusion
             diffusionTermC = cdag.makeDiffusionMatrix(cdag.C,cdag.DC,cdag.extendedC1,cdag.extendedC2);
             diffusionTermN = cdag.makeDiffusionMatrix(cdag.N,cdag.DN,cdag.extendedN1,cdag.extendedN2);
             diffusionTermI = cdag.makeDiffusionMatrix(cdag.I,cdag.DI,cdag.extendedI1,cdag.extendedI2);
@@ -545,73 +483,64 @@ classdef coloniesDiffusionAndGrowth
             cdag.C = max(0,cdag.C + cdag.dt*changeTermC);
             cdag.N = max(0,cdag.N + cdag.dt*changeTermN);
             cdag.I = max(0,cdag.I + cdag.dt*changeTermI);
+            
+            %growth rate
             cdag.mu = cdag.muMax*(cdag.C>0 & cdag.N>0).*cdag.Ii + cdag.muMaxPrime*(cdag.N<=0 & cdag.C>0).*cdag.Ni;
+            growthTermX = cdag.mu.*cdag.X.*(cdag.C>0) + (cdag.mu-cdag.kdecayX).*cdag.X.*(cdag.C==0);
+            changeTermX = growthTermX;
+            
+            %nutrient consumptions
             consumptionTermC = -1/cdag.YC*cdag.mu.*cdag.X.*(cdag.C>0);
             consumptionTermN = -1/cdag.YN*cdag.mu.*cdag.X.*(cdag.N>0);
             consumptionTermI = -1/cdag.YI*cdag.mu.*cdag.X.*(cdag.I>0);
             consumptionTermNi = -(1/cdag.YNi+cdag.Ni).*cdag.mu.*(cdag.N==0 & cdag.Ni>0);
             consumptionTermIi = -(1/cdag.YIi+cdag.Ii).*cdag.mu.*(cdag.I==0 & cdag.Ii>0);
-            growthTermX = cdag.mu.*cdag.X.*(cdag.C>0) + (cdag.mu-cdag.kdecayX).*cdag.X.*(cdag.C==0);
-            %disp(num2str(max(max(growthTermX))))
             changeTermC = consumptionTermC;
             changeTermN = consumptionTermN;
             changeTermI = consumptionTermI;
             changeTermNi = consumptionTermNi;
             changeTermIi = consumptionTermIi;
-            changeTermX = growthTermX;
             cdag.C = max(0,cdag.C + cdag.dt*changeTermC);
             cdag.N = max(0,cdag.N + cdag.dt*changeTermN);
             cdag.I = max(0,cdag.I + cdag.dt*changeTermI);
             cdag.Ni = max(0,cdag.Ni + cdag.dt*changeTermNi);
             cdag.Ii = max(0,cdag.Ii + cdag.dt*changeTermIi);
             cdag.X = max(0,cdag.X + cdag.dt*changeTermX);
+            
+            %zero nutrient concentrations that are below the minimum
+            %consumption of one cell, divided by the points on the grid
             if(min(min(consumptionTermC))~=0)
                 cdag.C(cdag.C<-1/(cdag.sideLength*cdag.sideLength)*max(max(cdag.dt*consumptionTermC(consumptionTermC~=0))))=0;
             end
             if(min(min(consumptionTermN))~=0)
-                %-1/(cdag.sideLength*cdag.sideLength)*max(max(cdag.dt*consumptionTermN(consumptionTermN~=0)))
                 cdag.N(cdag.N<-1/(cdag.sideLength*cdag.sideLength)*max(max(cdag.dt*consumptionTermN(consumptionTermN~=0))))=0;
             end
             if(min(min(consumptionTermI))~=0)
                 cdag.I(cdag.I<-1/(cdag.sideLength*cdag.sideLength)*max(max(cdag.dt*consumptionTermI(consumptionTermI~=0))))=0;
             end
             
-            [overflowCoord1 overflowCoord2] = find(cdag.X>cdag.XThresh,1,'first');
-            %randCoords = [-1 1; -1 0; -1 -1; 0 1; 0 -1; 1 1; 1 0; 1 -1];
-            while(~isempty(overflowCoord1))
-                [cdag overflowCoord1,overflowCoord2,overflowXVal,overflowLIKOVal,overflowRIKOVal,...
+            %find any cell that is above X threshold, divide it in half and
+            %move biomass somewhere else. If there is already a cell at
+            %that biomass, keep moving, always in the direction of colony
+            %border, till you hit an empty grid position
+            [overflowCoordVert overflowCoordHorz] = find(cdag.X>cdag.XThresh,1,'first');
+            while(~isempty(overflowCoordVert))
+                [cdag overflowCoordVert,overflowCoordHorz,overflowXVal,overflowLIKOVal,overflowRIKOVal,...
                     overflowLRKOVal,overflowRRKOVal,overflowIiVal,overflowNiVal,overflowColoniesVal] = ...
-                    cdag.overflowCell(overflowCoord1,overflowCoord2, ...
-                    cdag.colonies(overflowCoord1,overflowCoord2));
+                    cdag.overflowCell(overflowCoordVert,overflowCoordHorz, ...
+                    cdag.colonies(overflowCoordVert,overflowCoordHorz));
                 while( overflowXVal > 0 )
-                    [cdag overflowCoord1,overflowCoord2,overflowXVal,overflowLIKOVal,overflowRIKOVal,...
+                    [cdag overflowCoordVert,overflowCoordHorz,overflowXVal,overflowLIKOVal,overflowRIKOVal,...
                         overflowLRKOVal,overflowRRKOVal,overflowIiVal,overflowNiVal,overflowColoniesVal] = ...
-                        cdag.overflowCell(overflowCoord1,overflowCoord2, ...
-                        cdag.colonies(overflowCoord1,overflowCoord2), ...
-                        overflowXVal,overflowLIKOVal,overflowRIKOVal,overflowLRKOVal,overflowRRKOVal,overflowIiVal,overflowNiVal,overflowColoniesVal);
+                        cdag.overflowCell(overflowCoordVert,overflowCoordHorz, ...
+                        cdag.colonies(overflowCoordVert,overflowCoordHorz), ...
+                        overflowXVal,overflowLIKOVal,overflowRIKOVal,overflowLRKOVal, ...
+                        overflowRRKOVal,overflowIiVal,overflowNiVal,overflowColoniesVal);
                 end
-                [overflowCoord1 overflowCoord2] = find(cdag.X>cdag.XThresh,1,'first');
+                [overflowCoordVert overflowCoordHorz] = find(cdag.X>cdag.XThresh,1,'first');
             end
             
-            %implicit equation
-            %forms without decay and with autoinduction?
-            %Rnext = (cdag.R+cdag.dt*...
-            %(kprod*cdag.X+DS*([cdag.R(:,2:end) cdag.R(:,1)] + [cdag.R(:,end) cdag.R(:,1:end-1)] - ...
-            %4*cdag.R + [cdag.R(2:end, :); cdag.R(1,:)] + [cdag.R(end,:); cdag.R(1:end-1, :)])...
-            %/(cdag.dx)^2)/(1+cdag.dt*kdecay));
-            
-            if(mod(cdag.timeStep,uint64(100/cdag.dt))==0)
-                %         disp(cdag.dt*cdag.timeStep)
-                %         disp(max(max(cdag.R)))
-                %         disp((max(max(cdag.R))-min(min(cdag.R)))/(max(max(cdag.R))))
-                %         disp(sum(sum(decayTermR)))
-                %         disp(sum(sum(productionTermR)))
-                %         cdag.Ii(cdag.quarterPt,cdag.quarterPt)
-                %         cdag.Ii(cdag.quarterPt,cdag.quarterPt*3)
-                %         cdag.Ii(cdag.quarterPt*3,cdag.quarterPt*3)
-                %         cdag.Ii(cdag.quarterPt*3,cdag.quarterPt)
-            end
-            
+            %calculate cumulative values
             cdag.xCum(cdag.timeStep) = sum(sum(cdag.X));
             cdag.cCum(cdag.timeStep) = sum(sum(cdag.C));
             cdag.nCum(cdag.timeStep) = sum(sum(cdag.N));
@@ -619,6 +548,7 @@ classdef coloniesDiffusionAndGrowth
             cdag.rCum(cdag.timeStep) = sum(sum(cdag.R));
             cdag.lCum(cdag.timeStep) = sum(sum(cdag.L));
             
+            %store R, L, X, and GFP for either printing or movies
             matchesTimesToPrint = (uint64(cdag.timesToPrint/cdag.dt) == cdag.timeStep);
             if sum(matchesTimesToPrint)~=0
                 cdag.RAll(:,:,matchesTimesToPrint) = cdag.R;
@@ -635,34 +565,25 @@ classdef coloniesDiffusionAndGrowth
                 cdag.RAll2(:,:,cdag.frameTimeSteps == cdag.timeStep) = cdag.R;
             end
             
+            %increment L, R, and GFP
             if(cdag.withAdaptive)
                 [Lnext newTimeStepL] = adaptiveTimeStep(cdag.L,cdag.dt,changeTermL,cdag.timeStep);
                 [Rnext newTimeStepR] = adaptiveTimeStep(cdag.R,cdag.dt,changeTermR,cdag.timeStep);
                 Lnext = cdag.L + min(newTimeStepL, newTimeStepR) * (changeTermL);
                 Rnext = cdag.R + min(newTimeStepL, newTimeStepR) * (changeTermR);
-                %cdag.timeStep = min(new
             else
                 Lnext = cdag.L + cdag.dt*changeTermL;
                 Rnext = cdag.R + cdag.dt*changeTermR;
                 GFPnext = cdag.R.*cdag.X.*cdag.RIKO;
                 cdag.timeStep = cdag.timeStep + 1;
-            end
-            
+            end            
             cdag.Lstore(cdag.timeStep) = cdag.L(cdag.midPt,cdag.midPt);
-            cdag.L = Lnext;
-            %extendedL = [cdag.L(end,end) cdag.L(end,:) cdag.L(end,1);cdag.L(:,end) cdag.L cdag.L(:,1); cdag.L(1,end) cdag.L(1,:) cdag.L(1,1)];
-            
+            cdag.L = Lnext;            
             cdag.Rstore(cdag.timeStep) = cdag.R(cdag.midPt,cdag.midPt);
-            cdag.R = Rnext;
-            %extendedR = [cdag.R(end,end) cdag.R(end,:) cdag.R(end,1);cdag.R(:,end) cdag.R cdag.R(:,1); cdag.R(1,end) cdag.R(1,:) cdag.R(1,1)];
-            
+            cdag.R = Rnext;            
             cdag.GFP = GFPnext;
             
-            %     extendedL = [cdag.L(1,1) cdag.L(1,:) cdag.L(1,end);cdag.L(:,1) cdag.L cdag.L(:,end); cdag.L(end,1) cdag.L(end,:) cdag.L(end,end)];
-            %     extendedR = [cdag.R(1,1) cdag.R(1,:) cdag.R(1,end);cdag.R(:,1) cdag.R cdag.R(:,end); cdag.R(end,1) cdag.R(end,:) cdag.R(end,end)];
-            %     extendedC = [cdag.C(1,1) cdag.C(1,:) cdag.C(1,end);cdag.C(:,1) cdag.C cdag.C(:,end); cdag.C(end,1) cdag.C(end,:) cdag.C(end,end)];
-            %     extendedN = [cdag.N(1,1) cdag.N(1,:) cdag.N(1,end);cdag.N(:,1) cdag.N cdag.N(:,end); cdag.N(end,1) cdag.N(end,:) cdag.N(end,end)];
-            %     extendedI = [cdag.I(1,1) cdag.I(1,:) cdag.I(1,end);cdag.I(:,1) cdag.I cdag.I(:,end); cdag.I(end,1) cdag.I(end,:) cdag.I(end,end)];
+            %make new extended matrices
             [cdag.extendedL1 cdag.extendedL2] = cdag.makeExtendedMatrix(cdag.L);
             [cdag.extendedR1 cdag.extendedR2] = cdag.makeExtendedMatrix(cdag.R);
             [cdag.extendedC1 cdag.extendedC2] = cdag.makeExtendedMatrix(cdag.C);
@@ -832,7 +753,8 @@ classdef coloniesDiffusionAndGrowth
                 matrixToPlotScale(:, :, 2) = min( uint16(matrixToPlotScale(:, :, 2) + uint16(cdag.RIKO*2000)), uint16(2^16-1));
                 matrixToPlotScale(:, :, 1) = uint16( (matrixToPlot(:, :, 1) - MINVAL2) / (MAXVAL2 - MINVAL2) * (2^16-1) );
                 figure(15)
-                imshow(matrixToPlotScale(cdag.sideOffset+1:cdag.sideLength-cdag.sideOffset,cdag.sideOffset+1:cdag.sideLength-cdag.sideOffset,:))
+                imshow(matrixToPlotScale ...
+                    (cdag.sideOffset+1:cdag.sideLength-cdag.sideOffset,cdag.sideOffset+1:cdag.sideLength-cdag.sideOffset,:))
                 drawnow
                 print( 15, '-djpeg', sprintf('frames/frmGFP4%d.jpg', i))
             end
@@ -855,7 +777,8 @@ classdef coloniesDiffusionAndGrowth
                 matrixToPlotScale(:,:,3) = uint16( (matrixToPlot(:,:,3) - MINVAL1) / (MAXVAL1 - MINVAL1) * (2^16-1) );
                 matrixToPlotScale(:,:,1) = uint16( (matrixToPlot(:,:,1) - MINVAL2) / (MAXVAL2 - MINVAL2) * (2^16-1) );
                 figure(15)
-                imshow(matrixToPlotScale(cdag.sideOffset+1:cdag.sideLength-cdag.sideOffset,cdag.sideOffset+1:cdag.sideLength-cdag.sideOffset,:))
+                imshow(matrixToPlotScale ...
+                    (cdag.sideOffset+1:cdag.sideLength-cdag.sideOffset,cdag.sideOffset+1:cdag.sideLength-cdag.sideOffset,:))
                 drawnow
                 print( 15, '-djpeg', sprintf('frames/frmX4%d.jpg', i))
             end
